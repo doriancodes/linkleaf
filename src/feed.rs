@@ -8,7 +8,7 @@ pub fn read_feed(path: &PathBuf) -> Result<Feed> {
     Feed::decode(&*bytes).with_context(|| format!("failed to decode protobuf: {}", path.display()))
 }
 
-pub fn write_feed(path: &PathBuf, feed: &Feed) -> Result<()> {
+pub fn write_feed(path: &PathBuf, feed: Feed) -> Result<Feed> {
     let mut buf = Vec::with_capacity(1024);
     feed.encode(&mut buf)?;
 
@@ -21,5 +21,5 @@ pub fn write_feed(path: &PathBuf, feed: &Feed) -> Result<()> {
     }
     fs::rename(&tmp, path)
         .with_context(|| format!("failed to move temp file into place: {}", path.display()))?;
-    Ok(())
+    Ok(feed)
 }

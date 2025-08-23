@@ -82,11 +82,11 @@ fn cmd_init(file: PathBuf, title: Option<String>, version: Option<u32>) -> Resul
     feed.title = title.unwrap_or_else(|| "My Links".to_string());
     feed.version = version.unwrap_or(1);
 
-    write_feed(&file, &feed)?;
+    let modified_feed = write_feed(&file, feed)?;
     eprintln!(
         "Initialized feed: '{}' (v{}) → {}",
-        feed.title,
-        feed.version,
+        modified_feed.title,
+        modified_feed.version,
         file.display()
     );
     Ok(())
@@ -130,10 +130,10 @@ fn cmd_add(
     new_links.extend(feed.links.into_iter());
     feed.links = new_links;
 
-    write_feed(&file, &feed)?;
+    let modified_feed = write_feed(&file, feed)?;
     eprintln!(
         "Added link (total {}): {}",
-        feed.links.len(),
+        modified_feed.links.len(),
         file.display()
     );
     Ok(())
