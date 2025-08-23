@@ -1,0 +1,16 @@
+[package]
+name = "linkleaf-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+prost = "0.13"
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
+sha2 = "0.10"
+hex = "0.4"
+time = { version = "0.3", features = ["parsing", "macros"] }
+
+
+[build-dependencies]
+prost-build = "0.13"
