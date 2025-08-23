@@ -35,7 +35,7 @@ enum Commands {
         date: String,
         #[arg(short, long)]
         summary: Option<String>,
-        #[arg(short, long)]
+        #[arg(short = 'g', long)]
         tags: Option<String>,
         #[arg(long)]
         via: Option<String>,

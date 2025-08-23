@@ -17,7 +17,7 @@ The command-line interface (linkleaf) lets you create a feed, add links, and ins
 ### Initialize a feed
 
 ```bash
-linkleaf init --file mylinks.pb --title "My Links" --version 1
+linkleaf init --title "My Links" mylinks.pb --version 1
 ```
 Creates a new feed file (mylinks.pb) with optional title and version.
 
@@ -37,7 +37,7 @@ If no --id is given, one is derived automatically.
 ### List links (short view)
 
 ```bash
-linkleaf list --file mylinks.pb
+linkleaf list mylinks.pb
 ```
 Example output:
 
@@ -50,7 +50,7 @@ Feed: 'My Links' (v1) — 1 links
 
 ### Print links (detailed view)
 ```bash
-linkleaf print --file mylinks.pb
+linkleaf print mylinks.pb
 ```
 Example output:
 
