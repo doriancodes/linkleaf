@@ -94,7 +94,23 @@ Feed: 'My Links' (v1)
 ```bash
 linkleaf html feed/mylinks.pb --out assets/index.html --title "My Links"
 ```
+### Publish to a git repo
+```bash
+# Commit and push feed/mylinks.pb to the current upstream
+linkleaf publish
 
+# Commit and push to a specific branch (sets upstream)
+linkleaf publish -b main
+
+# Custom file path + custom message
+linkleaf publish my/links.pb -m "Add two new links"
+
+# Use a different remote
+linkleaf publish --remote origin
+
+# Commit only (don’t push)
+linkleaf publish --no-push
+```
 
 ## Feed Schema
 

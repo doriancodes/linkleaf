@@ -7,6 +7,7 @@ use linkleaf_rs::feed::{read_feed, write_feed};
 use linkleaf_rs::html::{FeedPage, FeedView, LinkView};
 use linkleaf_rs::linkleaf_proto::{Feed, Link};
 use sha2::{Digest, Sha256};
+use std::process::Command;
 use std::{fs, io::Write};
 use time::OffsetDateTime;
 
@@ -30,6 +31,36 @@ enum Commands {
 
     /// Render HTML from the feed
     Html(HtmlArgs),
+
+    /// Commit & push the feed file to a git remote
+    Publish(PublishArgs),
+}
+
+#[derive(Args)]
+struct PublishArgs {
+    /// Path to the feed .pb file
+    #[arg(value_name = "FILE", default_value = "feed/mylinks.pb")]
+    file: PathBuf,
+
+    /// Git remote name
+    #[arg(short, long, default_value = "origin")]
+    remote: String,
+
+    /// Branch to push to; if omitted, uses the current upstream
+    #[arg(short = 'b', long)]
+    branch: Option<String>,
+
+    /// Commit message
+    #[arg(short = 'm', long, default_value = "Update link feed")]
+    message: String,
+
+    /// Allow committing even when there are no changes
+    #[arg(long)]
+    allow_empty: bool,
+
+    /// Do not push (only commit)
+    #[arg(long)]
+    no_push: bool,
 }
 
 #[derive(Args)]
@@ -119,6 +150,7 @@ fn main() -> Result<()> {
         ),
         Commands::List(args) => cmd_list(args.file, args.long),
         Commands::Html(args) => cmd_html(args.file, args.out, args.title),
+        Commands::Publish(args) => cmd_publish(args),
     }
 }
 
@@ -334,7 +366,7 @@ fn cmd_html(file: PathBuf, out: PathBuf, custom_title: Option<String>) -> Result
     fs::rename(&tmp, &out)
         .with_context(|| format!("failed to move temp file into place: {}", out.display()))?;
 
-    // 🔹 copy style.css next to the HTML output
+    // copy style.css next to the HTML output
     let css_src = PathBuf::from("templates/style.css");
     if css_src.exists() {
         let css_out = out
@@ -351,5 +383,130 @@ fn cmd_html(file: PathBuf, out: PathBuf, custom_title: Option<String>) -> Result
     }
 
     eprintln!("Wrote HTML: {}", out.display());
+    Ok(())
+}
+
+fn cmd_publish(args: PublishArgs) -> Result<()> {
+    // Ensure file exists
+    if !args.file.exists() {
+        bail!("feed file not found: {}", args.file.display());
+    }
+
+    // Resolve absolute paths
+    let file_abs = fs::canonicalize(&args.file)
+        .with_context(|| format!("failed to resolve {}", args.file.display()))?;
+    let file_dir = file_abs.parent().unwrap_or_else(|| Path::new("."));
+
+    // Find repo root via git
+    let repo_root = git_output(
+        &[
+            "-C",
+            file_dir.to_str().unwrap(),
+            "rev-parse",
+            "--show-toplevel",
+        ],
+        "detect git repo",
+    )?;
+    let repo_root = PathBuf::from(repo_root.trim());
+
+    // Build path relative to repo root for the add/commit
+    let rel = file_abs
+        .strip_prefix(&repo_root)
+        .unwrap_or(&file_abs)
+        .to_path_buf();
+    let rel_str = rel.to_string_lossy();
+
+    // Stage file
+    git_check(
+        &["-C", repo_root.to_str().unwrap(), "add", "--", &rel_str],
+        "git add",
+    )?;
+
+    // Commit (handle "nothing to commit" gracefully if allow_empty)
+    let mut commit_args = vec!["-C", repo_root.to_str().unwrap(), "commit"];
+    if args.allow_empty {
+        commit_args.push("--allow-empty");
+    }
+    commit_args.extend_from_slice(&["-m", &args.message, "--", &rel_str]);
+
+    match Command::new("git").args(&commit_args).output() {
+        Ok(o) if o.status.success() => {
+            eprintln!("Committed: {}", String::from_utf8_lossy(&o.stdout).trim());
+        }
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            if stderr.contains("nothing to commit") {
+                eprintln!("Nothing to commit; working tree clean.");
+            } else {
+                bail!("git commit failed: {}", stderr.trim());
+            }
+        }
+        Err(e) => bail!("failed to run git commit: {e}"),
+    }
+
+    if args.no_push {
+        eprintln!("Skipped push (--no-push).");
+        return Ok(());
+    }
+
+    // Push
+    if let Some(branch) = args.branch.as_deref() {
+        // Push HEAD to the given branch and set upstream
+        git_check(
+            &[
+                "-C",
+                repo_root.to_str().unwrap(),
+                "push",
+                "-u",
+                &args.remote,
+                &format!("HEAD:{branch}"),
+            ],
+            "git push -u",
+        )?;
+    } else {
+        // Let git use the current upstream
+        git_check(
+            &["-C", repo_root.to_str().unwrap(), "push", &args.remote],
+            "git push",
+        )?;
+    }
+
+    eprintln!(
+        "Published {} to {}{}",
+        rel_str,
+        args.remote,
+        args.branch
+            .as_deref()
+            .map(|b| format!("/{}", b))
+            .unwrap_or_default()
+    );
+    Ok(())
+}
+
+fn git_output(args: &[&str], what: &str) -> Result<String> {
+    let out = Command::new("git")
+        .args(args)
+        .output()
+        .with_context(|| format!("failed to run git for {what}"))?;
+    if !out.status.success() {
+        bail!(
+            "git command failed ({what}): {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+fn git_check(args: &[&str], what: &str) -> Result<()> {
+    let out = Command::new("git")
+        .args(args)
+        .output()
+        .with_context(|| format!("failed to run git for {what}"))?;
+    if !out.status.success() {
+        bail!(
+            "git command failed ({what}): {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
     Ok(())
 }
