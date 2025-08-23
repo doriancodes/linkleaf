@@ -65,6 +65,12 @@ Feed: 'My Links' (v1)
   tags: rust, learning, book
 
 ```
+### Render to HTML
+
+```bash
+html --out assets/index.html --title "My Links" mylinks.pb
+```
+
 
 ## Feed Schema
 
@@ -97,6 +103,7 @@ cargo build
 
 ## Roadmap / Ideas
 
-- Export feeds to JSON, Markdown, or HTML.
+- Export feeds to JSON, Markdown.
 - Import from bookmark managers or RSS.
 - Filtering and searching links by tags or date.
+- Sanitise input (remove duplicates)

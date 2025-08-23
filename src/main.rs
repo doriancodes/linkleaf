@@ -1,10 +1,13 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
+use askama::Template;
 use clap::{Parser, Subcommand};
 use linkleaf_rs::feed::{read_feed, write_feed};
 use linkleaf_rs::linkleaf_proto::{Feed, Link};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
+use std::{fs, io::Write};
 use time::Date;
 use time::macros::format_description;
 
@@ -48,6 +51,16 @@ enum Commands {
     Print {
         file: PathBuf,
     },
+    Html {
+        /// Input feed (.pb)
+        file: PathBuf,
+        /// Output HTML file (e.g., docs/index.html or just index.html)
+        #[arg(short, long)]
+        out: PathBuf,
+        /// Optional page title (defaults to feed.title or "My Links")
+        #[arg(short, long)]
+        title: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -70,6 +83,7 @@ fn main() -> Result<()> {
         } => cmd_add(file, title, url, date, summary, tags, via, id),
         Commands::List { file } => cmd_list(file),
         Commands::Print { file } => cmd_print(file),
+        Commands::Html { file, out, title } => cmd_html(file, out, title),
     }
 }
 
@@ -219,4 +233,104 @@ fn is_not_found(err: &anyhow::Error) -> bool {
     err.downcast_ref::<std::io::Error>()
         .map(|e| e.kind() == std::io::ErrorKind::NotFound)
         .unwrap_or(false)
+}
+
+#[derive(serde::Serialize)]
+struct LinkView {
+    title: String,
+    url: String,
+    date: String,
+    summary: String,
+    via: String,
+    has_tags: bool,
+    tags_joined: String,
+}
+
+#[derive(Serialize)]
+struct FeedView {
+    title: String,
+    count: usize,
+    links: Vec<LinkView>,
+}
+
+#[derive(Template)]
+#[template(path = "feed.html", escape = "html")]
+struct FeedPage<'a> {
+    feed: &'a FeedView,
+}
+
+fn cmd_html(file: PathBuf, out: PathBuf, custom_title: Option<String>) -> Result<()> {
+    let feed = read_feed(&file)?;
+
+    // map proto → template view; keep it minimal
+    let title = custom_title.unwrap_or_else(|| {
+        let t = feed.title.trim();
+        if t.is_empty() {
+            "My Links".into()
+        } else {
+            t.into()
+        }
+    });
+    let links: Vec<LinkView> = feed
+        .links
+        .iter()
+        .map(|l| {
+            let has_tags = !l.tags.is_empty();
+            let tags_joined = if has_tags {
+                l.tags.join(", ")
+            } else {
+                String::new()
+            };
+            LinkView {
+                title: l.title.clone(),
+                url: l.url.clone(),
+                date: l.date.clone(),
+                summary: l.summary.clone(),
+                via: l.via.clone(),
+                has_tags,
+                tags_joined,
+            }
+        })
+        .collect();
+
+    let view = FeedView {
+        title,
+        count: links.len(),
+        links,
+    };
+    let page = FeedPage { feed: &view };
+    let html = page.render().context("failed to render HTML")?;
+
+    // write atomically (same pattern as write_feed)
+    if let Some(parent) = out.parent() {
+        fs::create_dir_all(parent).ok();
+    }
+    let tmp = out.with_extension("html.tmp");
+    {
+        let mut f =
+            fs::File::create(&tmp).with_context(|| format!("failed to write {}", tmp.display()))?;
+        f.write_all(html.as_bytes())?;
+        f.flush()?;
+    }
+    fs::rename(&tmp, &out)
+        .with_context(|| format!("failed to move temp file into place: {}", out.display()))?;
+
+    // 🔹 copy style.css next to the HTML output
+    let css_src = PathBuf::from("templates/style.css");
+    if css_src.exists() {
+        let css_out = out
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("style.css");
+        fs::copy(&css_src, &css_out).with_context(|| {
+            format!(
+                "failed to copy {} to {}",
+                css_src.display(),
+                css_out.display()
+            )
+        })?;
+    }
+
+    eprintln!("Wrote HTML: {}", out.display());
+    Ok(())
 }
