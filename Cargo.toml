@@ -2,6 +2,24 @@
 name = "linkleaf-rs"
 version = "0.1.0"
 edition = "2024"
+description = "Local-first protobuf-only link feed manager (linkleaf.v1) with a tiny CLI."
+license = "BSD-3-Clause"
+repository = "https://github.com/doriancodes/linkleaf-rs"
+homepage = "https://github.com/doriancodes/linkleaf-rs"
+documentation = "https://docs.rs/linkleaf-rs"
+readme = "README.md"
+keywords = ["links", "cli", "protobuf", "local-first"]
+categories = ["command-line-utilities"]
+
+include = [
+    "Cargo.toml",
+    "build.rs",
+    "src/**",
+    "proto/**",
+    "templates/**",
+    "README.md",
+    "LICENSE*",
+]
 
 [dependencies]
 prost = "0.13"
@@ -15,3 +33,18 @@ serde = { version = "1.0.219", features = ["derive"] }
 
 [build-dependencies]
 prost-build = "0.13"
+
+[lib]
+name = "linkleaf"
+path = "src/lib.rs"
+
+[[bin]]
+name = "linkleaf"
+path = "src/main.rs"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+opt-level = 3
+strip = "symbols"
+panic = "abort"
