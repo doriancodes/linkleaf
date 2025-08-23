@@ -19,6 +19,8 @@ include = [
     "templates/**",
     "README.md",
     "LICENSE*",
+    "logo.svg",
+    "logo-monochrome.svg",
 ]
 
 [dependencies]
@@ -36,6 +38,7 @@ tempfile = "3"
 
 [build-dependencies]
 prost-build = "0.13"
+protoc-bin-vendored = "3"
 
 [lib]
 name = "linkleaf"
@@ -51,3 +54,8 @@ codegen-units = 1
 opt-level = 3
 strip = "symbols"
 panic = "abort"
+
+# Ensure docs.rs builds pick defaults that compile
+[package.metadata.docs.rs]
+all-features = false
+no-default-features = false
