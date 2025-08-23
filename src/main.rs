@@ -8,8 +8,8 @@ use linkleaf_rs::linkleaf_proto::{Feed, Link};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{fs, io::Write};
-use time::Date;
 use time::macros::format_description;
+use time::{Date, OffsetDateTime};
 
 #[derive(Parser)]
 #[command(name = "linkleaf", about = "protobuf-only feed manager (linkleaf.v1)")]
@@ -34,8 +34,6 @@ enum Commands {
         title: String,
         #[arg(short, long)]
         url: String,
-        #[arg(short, long)]
-        date: String,
         #[arg(short, long)]
         summary: Option<String>,
         #[arg(short = 'g', long)]
@@ -75,12 +73,11 @@ fn main() -> Result<()> {
             file,
             title,
             url,
-            date,
             summary,
             tags,
             via,
             id,
-        } => cmd_add(file, title, url, date, summary, tags, via, id),
+        } => cmd_add(file, title, url, summary, tags, via, id),
         Commands::List { file } => cmd_list(file),
         Commands::Print { file } => cmd_print(file),
         Commands::Html { file, out, title } => cmd_html(file, out, title),
@@ -110,14 +107,12 @@ fn cmd_add(
     file: PathBuf,
     title: String,
     url: String,
-    date: String,
     summary: Option<String>,
     tags: Option<String>,
     via: Option<String>,
     id: Option<String>,
 ) -> Result<()> {
-    validate_date(&date)?;
-
+    let date = OffsetDateTime::now_utc().date().to_string(); // "YYYY-MM-DD"
     let mut feed = match read_feed(&file) {
         Ok(f) => f,
         Err(err) if is_not_found(&err) => {
@@ -220,13 +215,6 @@ fn derive_id(url: &str, date: &str) -> String {
     let digest = hasher.finalize();
     let hexed = hex::encode(digest);
     hexed[..12].to_string()
-}
-
-fn validate_date(s: &str) -> Result<()> {
-    let fmt = format_description!("[year]-[month]-[day]");
-    let _ = Date::parse(s, &fmt)
-        .with_context(|| format!("invalid date (expected YYYY-MM-DD): {}", s))?;
-    Ok(())
 }
 
 fn is_not_found(err: &anyhow::Error) -> bool {

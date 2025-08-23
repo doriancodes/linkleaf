@@ -68,7 +68,7 @@ Feed: 'My Links' (v1)
 ### Render to HTML
 
 ```bash
-html --out assets/index.html --title "My Links" mylinks.pb
+linkleaf html --out assets/index.html --title "My Links" mylinks.pb
 ```
 
 
