@@ -25,21 +25,22 @@ enum Commands {
     /// Add a link to the feed
     Add(AddArgs),
 
-    /// List links (compact)
-    List(FileArg),
-
-    /// Print links (detailed)
-    Print(FileArg),
+    /// List links (compact by default; use -l/--long for details)
+    List(ListArgs),
 
     /// Render HTML from the feed
     Html(HtmlArgs),
 }
 
 #[derive(Args)]
-struct FileArg {
+struct ListArgs {
     /// Path to the feed .pb file
     #[arg(value_name = "FILE", default_value = "feed/mylinks.pb")]
     file: PathBuf,
+
+    /// Show detailed, multi-line output
+    #[arg(short = 'l', long = "long", alias = "detail")]
+    long: bool,
 }
 
 #[derive(Args)]
@@ -116,8 +117,7 @@ fn main() -> Result<()> {
             args.via,
             args.id,
         ),
-        Commands::List(args) => cmd_list(args.file),
-        Commands::Print(args) => cmd_print(args.file),
+        Commands::List(args) => cmd_list(args.file, args.long),
         Commands::Html(args) => cmd_html(args.file, args.out, args.title),
     }
 }
@@ -186,35 +186,39 @@ fn cmd_add(
     Ok(())
 }
 
-fn cmd_list(file: PathBuf) -> Result<()> {
+fn cmd_list(file: PathBuf, long: bool) -> Result<()> {
     let feed = read_feed(&file)?;
-    println!(
-        "Feed: '{}' (v{}) — {} links\n",
-        feed.title,
-        feed.version,
-        feed.links.len()
-    );
 
-    for (idx, l) in feed.links.iter().enumerate() {
-        let tags = if l.tags.is_empty() {
-            String::new()
-        } else {
-            format!(" [{}]", l.tags.join(","))
-        };
+    if long {
+        long_print(feed);
+    } else {
         println!(
-            "{:>3}. {}  {}{}\n     {}",
-            idx + 1,
-            l.date,
-            l.title,
-            tags,
-            l.url
+            "Feed: '{}' (v{}) — {} links\n",
+            feed.title,
+            feed.version,
+            feed.links.len()
         );
+
+        for (idx, l) in feed.links.iter().enumerate() {
+            let tags = if l.tags.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", l.tags.join(","))
+            };
+            println!(
+                "{:>3}. {}  {}{}\n     {}",
+                idx + 1,
+                l.date,
+                l.title,
+                tags,
+                l.url
+            );
+        }
     }
     Ok(())
 }
 
-fn cmd_print(file: PathBuf) -> Result<()> {
-    let feed = read_feed(&file)?;
+fn long_print(feed: Feed) -> Result<()> {
     println!("Feed: '{}' (v{})\n", feed.title, feed.version);
     for l in &feed.links {
         println!("- [{}] {}", l.date, l.title);

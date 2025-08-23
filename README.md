@@ -57,7 +57,7 @@ If no --id is given, one is derived automatically.
 ### List links (short view)
 
 ```bash
-linkleaf list feed/mylinks.pb
+linkleaf list
 ```
 Example output:
 
@@ -70,9 +70,9 @@ Feed: 'My Links' (v1) — 2 links
      https://doc.rust-lang.org/book/
 ```
 
-### Print links (detailed view)
+### List links (detailed view)
 ```bash
-linkleaf print feed/mylinks.pb
+linkleaf list -l
 ```
 Example output:
 
