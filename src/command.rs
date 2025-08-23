@@ -1,11 +1,10 @@
-use std::path::{Path, PathBuf};
-
 use crate::feed::{read_feed, write_feed};
 use crate::html::{FeedPage, FeedView, LinkView};
 use crate::linkleaf_proto::{Feed, Link};
 use anyhow::{Context, Result, bail};
 use askama::Template;
 use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{fs, io::Write};
 use time::OffsetDateTime;
@@ -372,4 +371,211 @@ fn git_check(args: &[&str], what: &str) -> Result<()> {
         );
     }
     Ok(())
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::linkleaf_proto::{Feed, Link};
+    use tempfile::TempDir;
+
+    fn sample_feed_one() -> Feed {
+        let mut f = Feed::default();
+        f.title = "Sample".into();
+        f.version = 1;
+        f.links.push(Link {
+            id: "one".into(),
+            title: "First".into(),
+            url: "https://example.com/1".into(),
+            date: "2025-01-01".into(),
+            summary: "hello".into(),
+            tags: vec!["x".into(), "y".into()],
+            via: "".into(),
+        });
+        f
+    }
+
+    #[test]
+    fn init_creates_file_and_defaults() -> anyhow::Result<()> {
+        let tmp = TempDir::new()?;
+        let path = tmp.path().join("nested/dir/mylinks.pb");
+        cmd_init(path.clone(), "My Links".into(), 2)?;
+        assert!(path.exists(), "feed file should exist");
+        let feed = read_feed(&PathBuf::from(&path))?;
+        assert_eq!(feed.title, "My Links");
+        assert_eq!(feed.version, 2);
+        assert!(feed.links.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn add_inserts_then_updates_same_id() -> anyhow::Result<()> {
+        let tmp = TempDir::new()?;
+        let path = tmp.path().join("feed.pb");
+
+        // Insert (file doesn't exist yet; implementation should create a v1 feed)
+        cmd_add(
+            path.clone(),
+            "Rust Book".into(),
+            "https://doc.rust-lang.org/book/".into(),
+            Some("Great read".into()),
+            Some("rust,book".into()),
+            Some("https://rust-lang.org".into()),
+            Some("fixed-id".into()), // ensure deterministic update target
+        )?;
+        let mut feed = read_feed(&PathBuf::from(&path))?;
+        assert_eq!(feed.links.len(), 1);
+        assert_eq!(feed.links[0].id, "fixed-id");
+        assert_eq!(feed.links[0].title, "Rust Book");
+
+        // Update same id: title & summary change; still one entry
+        cmd_add(
+            path.clone(),
+            "The Rust Book".into(),
+            "https://doc.rust-lang.org/book/".into(),
+            Some("Updated summary".into()),
+            Some("rust,book".into()),
+            None,
+            Some("fixed-id".into()),
+        )?;
+        feed = read_feed(&PathBuf::from(&path))?;
+        assert_eq!(feed.links.len(), 1, "should update, not duplicate");
+        assert_eq!(feed.links[0].title, "The Rust Book");
+        assert_eq!(feed.links[0].summary, "Updated summary");
+        Ok(())
+    }
+
+    #[test]
+    fn list_compact_and_long_run() -> anyhow::Result<()> {
+        let tmp = TempDir::new()?;
+        let path = tmp.path().join("feed.pb");
+        write_feed(&PathBuf::from(&path), sample_feed_one())?;
+
+        // We don’t assert output formatting here; just ensure no panic/err.
+        cmd_list(path.clone(), false)?;
+        cmd_list(path.clone(), true)?;
+        Ok(())
+    }
+
+    #[test]
+    fn html_renders_and_writes_css() -> anyhow::Result<()> {
+        let tmp = TempDir::new()?;
+        let feed_path = tmp.path().join("feed.pb");
+        write_feed(&PathBuf::from(&feed_path), sample_feed_one())?;
+
+        let out_html = tmp.path().join("site/index.html");
+        cmd_html(feed_path.clone(), out_html.clone(), Some("My Page".into()))?;
+
+        let html = std::fs::read_to_string(&out_html)?;
+        assert!(
+            html.contains("<title>My Page"),
+            "title should appear in HTML"
+        );
+        assert!(html.contains("First"), "link title should render");
+        let css_out = out_html.parent().unwrap().join("style.css");
+        assert!(css_out.exists(), "style.css should be written next to HTML");
+        Ok(())
+    }
+
+    #[test]
+    fn publish_adds_commits_and_pushes_to_local_bare() -> anyhow::Result<()> {
+        // Skip if git isn't available
+        if Command::new("git").arg("--version").output().is_err() {
+            eprintln!("git not found; skipping publish test");
+            return Ok(());
+        }
+
+        let tmp = TempDir::new()?;
+        let bare = tmp.path().join("remote.git");
+        let work = tmp.path().join("work");
+        let clone_dir = tmp.path().join("clone");
+
+        // Init bare repo
+        {
+            let out = Command::new("git")
+                .args(["init", "--bare"])
+                .arg(&bare)
+                .output()?;
+            assert!(
+                out.status.success(),
+                "git init --bare failed: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+
+        // Init work repo
+        {
+            fs::create_dir_all(&work)?;
+            let run = |args: &[&str]| -> anyhow::Result<()> {
+                let out = Command::new("git").args(args).current_dir(&work).output()?;
+                if !out.status.success() {
+                    bail!(
+                        "git failed: {} ({:?})",
+                        String::from_utf8_lossy(&out.stderr),
+                        args
+                    );
+                }
+                Ok(())
+            };
+            run(&["init"])?;
+            // configure identity for commits
+            run(&["config", "user.name", "Test User"])?;
+            run(&["config", "user.email", "test@example.com"])?;
+            // create main branch (portable sequence)
+            run(&["checkout", "-b", "main"])?;
+            run(&["remote", "add", "origin", bare.to_str().unwrap()])?;
+
+            // Create feed and publish
+            let feed_path = work.join("feed/mylinks.pb");
+            write_feed(&feed_path, sample_feed_one())?;
+
+            cmd_publish(
+                feed_path.clone(),
+                "origin",
+                Some("main".into()),
+                "init commit",
+                false,
+                false,
+            )?;
+        }
+
+        // Clone the remote and verify file exists & decodes
+        {
+            let out = Command::new("git")
+                .args(["clone", bare.to_str().unwrap(), clone_dir.to_str().unwrap()])
+                .output()?;
+            assert!(
+                out.status.success(),
+                "git clone failed: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+
+            let cloned_feed = clone_dir.join("feed/mylinks.pb");
+            assert!(cloned_feed.exists(), "feed should be present in clone");
+
+            let feed = read_feed(&PathBuf::from(&cloned_feed))?;
+            assert_eq!(feed.title, "Sample");
+            assert_eq!(feed.links.len(), 1);
+        }
+
+        Ok(())
+    }
+
+    // (optional) tiny helpers unit-tests
+
+    #[test]
+    fn parse_tags_various_whitespace() {
+        assert_eq!(super::parse_tags(None), Vec::<String>::new());
+        assert_eq!(
+            super::parse_tags(Some("a, b,  ,c".into())),
+            vec!["a", "b", "c"]
+        );
+    }
+
+    #[test]
+    fn derive_id_is_stable() {
+        let a = super::derive_id("https://x", "2025-08-23");
+        let b = super::derive_id("https://x", "2025-08-23");
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 12);
+    }
 }

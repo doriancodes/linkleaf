@@ -369,6 +369,7 @@ dependencies = [
  "prost-build",
  "serde",
  "sha2",
+ "tempfile",
  "time",
 ]
 
