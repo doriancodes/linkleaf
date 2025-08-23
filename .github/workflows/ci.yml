@@ -57,7 +57,8 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      # If your tests need additional system packages, add an apt step here.
+      - name: Install protobuf compiler
+        run: apt-get install protobuf-compiler
 
       - name: Build
         run: cargo build --verbose
