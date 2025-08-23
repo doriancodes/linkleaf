@@ -9,6 +9,12 @@ pub fn read_feed(path: &PathBuf) -> Result<Feed> {
 }
 
 pub fn write_feed(path: &PathBuf, feed: Feed) -> Result<Feed> {
+    // Ensure parent directory exists (if any)
+    if let Some(dir) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        fs::create_dir_all(dir)
+            .with_context(|| format!("failed to create directory {}", dir.display()))?;
+    }
+
     let mut buf = Vec::with_capacity(1024);
     feed.encode(&mut buf)?;
 

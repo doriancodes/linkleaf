@@ -1,4 +1,4 @@
-#<p align="center">
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="logo-monochrome.svg">
     <img alt="Linkleaf" src="logo.svg" width="420">
@@ -11,7 +11,7 @@
   Manage <strong>protobuf-only</strong> Linkleaf feeds (<code>linkleaf.v1</code>) within your terminal.
 </p>
 
---- 
+---
 
 linkleaf-rs is a simple, protobuf-backed feed manager for storing and organizing links.
 It uses a Protocol Buffers schema to define a portable, versioned format for feeds and individual link entries.
@@ -26,22 +26,30 @@ The command-line interface (linkleaf) lets you create a feed, add links, and ins
 - CLI commands for initialization, adding entries, listing, and pretty-printing.
 
 ## Usage
-### Initialize a feed
 
 ```bash
-linkleaf init --title "My Links" mylinks.pb --version 1
+linkleaf init <FILE> [--title <TITLE>] [--version <N>]
+linkleaf add  <FILE> --title <TITLE> --url <URL> [--summary <S>] [--tags <CSV>] [--via <URL>] [--id <ID>]
+linkleaf list <FILE>
+linkleaf print <FILE>
+linkleaf html <FILE> --out <HTML> [--title <PAGE_TITLE>]
 ```
-Creates a new feed file (mylinks.pb) with optional title and version.
+
+### Initialize a feed
+```bash
+linkleaf init
+```
+Creates a new feed file with optional title and version.
 
 ### Add a link
 ```bash
-linkleaf add --file mylinks.pb \
-  --title "Rust Book" \
+linkleaf add --title "The Rust Book" \
   --url "https://doc.rust-lang.org/book/" \
-  --date 2025-08-23 \
-  --summary "The official Rust programming language book" \
-  --tags rust,learning,book \
+  -g rust,learning,book \
   --via "https://rust-lang.org"
+
+linkleaf --title "Tokio - Asynchronous Rust" \
+  --url "https://tokio.rs/"
 ```
 
 If no --id is given, one is derived automatically.
@@ -49,38 +57,42 @@ If no --id is given, one is derived automatically.
 ### List links (short view)
 
 ```bash
-linkleaf list mylinks.pb
+linkleaf list feed/mylinks.pb
 ```
 Example output:
 
 ```bash
-Feed: 'My Links' (v1) — 1 links
+Feed: 'My Links' (v1) — 2 links
 
-  1. 2025-08-23  Rust Book [rust,learning,book]
+  1. 2025-08-23  Tokio - Asynchronous Rust
+     https://tokio.rs/
+  2. 2025-08-23  The Rust Book [rust,learning,book]
      https://doc.rust-lang.org/book/
 ```
 
 ### Print links (detailed view)
 ```bash
-linkleaf print mylinks.pb
+linkleaf print feed/mylinks.pb
 ```
 Example output:
 
 ```bash
 Feed: 'My Links' (v1)
 
-- [2025-08-23] Rust Book
-  id: 123abc456def
+- [2025-08-23] Tokio - Asynchronous Rust
+  id: b8f94c560b87
+  url: https://tokio.rs/
+
+- [2025-08-23] The Rust Book
+  id: 04eff20db88f
   url: https://doc.rust-lang.org/book/
   via: https://rust-lang.org
-  summary: The official Rust programming language book
   tags: rust, learning, book
-
 ```
 ### Render to HTML
 
 ```bash
-linkleaf html --out assets/index.html --title "My Links" mylinks.pb
+linkleaf html feed/mylinks.pb --out assets/index.html --title "My Links"
 ```
 
 

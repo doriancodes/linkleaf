@@ -2,96 +2,134 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use askama::Template;
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use linkleaf_rs::feed::{read_feed, write_feed};
 use linkleaf_rs::linkleaf_proto::{Feed, Link};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{fs, io::Write};
-use time::macros::format_description;
-use time::{Date, OffsetDateTime};
+use time::OffsetDateTime;
 
 #[derive(Parser)]
 #[command(name = "linkleaf", about = "protobuf-only feed manager (linkleaf.v1)")]
-struct Cli {
+pub struct Cli {
     #[command(subcommand)]
     command: Commands,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    Init {
-        file: PathBuf,
-        #[arg(short, long)]
-        title: Option<String>,
-        #[arg(short, long)]
-        version: Option<u32>,
-    },
-    Add {
-        #[arg(short, long)]
-        file: PathBuf,
-        #[arg(short, long)]
-        title: String,
-        #[arg(short, long)]
-        url: String,
-        #[arg(short, long)]
-        summary: Option<String>,
-        #[arg(short = 'g', long)]
-        tags: Option<String>,
-        #[arg(long)]
-        via: Option<String>,
-        #[arg(long)]
-        id: Option<String>,
-    },
-    List {
-        file: PathBuf,
-    },
-    Print {
-        file: PathBuf,
-    },
-    Html {
-        /// Input feed (.pb)
-        file: PathBuf,
-        /// Output HTML file (e.g., docs/index.html or just index.html)
-        #[arg(short, long)]
-        out: PathBuf,
-        /// Optional page title (defaults to feed.title or "My Links")
-        #[arg(short, long)]
-        title: Option<String>,
-    },
+    /// Initialize a new feed file
+    Init(InitArgs),
+
+    /// Add a link to the feed
+    Add(AddArgs),
+
+    /// List links (compact)
+    List(FileArg),
+
+    /// Print links (detailed)
+    Print(FileArg),
+
+    /// Render HTML from the feed
+    Html(HtmlArgs),
+}
+
+#[derive(Args)]
+struct FileArg {
+    /// Path to the feed .pb file
+    #[arg(value_name = "FILE", default_value = "feed/mylinks.pb")]
+    file: PathBuf,
+}
+
+#[derive(Args)]
+struct InitArgs {
+    /// Path to create the feed .pb file
+    #[arg(value_name = "FILE", default_value = "feed/mylinks.pb")]
+    file: PathBuf,
+
+    /// Feed title
+    #[arg(short, long, default_value = "My Links")]
+    title: String,
+
+    /// Feed version
+    #[arg(short, long, default_value = "1")]
+    version: u32,
+}
+
+#[derive(Args)]
+struct AddArgs {
+    /// Path to the feed .pb file
+    #[arg(value_name = "FILE", default_value = "feed/mylinks.pb")]
+    file: PathBuf,
+
+    /// Link title
+    #[arg(short, long)]
+    title: String,
+
+    /// Link URL
+    #[arg(short, long)]
+    url: String,
+
+    /// Optional summary
+    #[arg(short, long)]
+    summary: Option<String>,
+
+    /// Optional comma-separated tags
+    #[arg(short = 'g', long)]
+    tags: Option<String>,
+
+    /// Optional "via" URL
+    #[arg(long)]
+    via: Option<String>,
+
+    /// Override auto id (defaults to sha256(url|date)[:12])
+    #[arg(long)]
+    id: Option<String>,
+}
+
+#[derive(Args)]
+struct HtmlArgs {
+    /// Input feed .pb file
+    #[arg(value_name = "FILE", default_value = "feed/mylinks.pb")]
+    file: PathBuf,
+
+    /// Output HTML file (e.g., docs/index.html)
+    #[arg(short, long, default_value = "assets/index.html")]
+    out: PathBuf,
+
+    /// Page title (defaults to feed.title)
+    #[arg(short, long)]
+    title: Option<String>,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Init {
-            file,
-            title,
-            version,
-        } => cmd_init(file, title, version),
-        Commands::Add {
-            file,
-            title,
-            url,
-            summary,
-            tags,
-            via,
-            id,
-        } => cmd_add(file, title, url, summary, tags, via, id),
-        Commands::List { file } => cmd_list(file),
-        Commands::Print { file } => cmd_print(file),
-        Commands::Html { file, out, title } => cmd_html(file, out, title),
+        Commands::Init(args) => cmd_init(args.file, args.title, args.version),
+        Commands::Add(args) => cmd_add(
+            args.file,
+            args.title,
+            args.url,
+            args.summary,
+            args.tags,
+            args.via,
+            args.id,
+        ),
+        Commands::List(args) => cmd_list(args.file),
+        Commands::Print(args) => cmd_print(args.file),
+        Commands::Html(args) => cmd_html(args.file, args.out, args.title),
     }
 }
 
-fn cmd_init(file: PathBuf, title: Option<String>, version: Option<u32>) -> Result<()> {
+fn cmd_init(file: PathBuf, title: String, version: u32) -> Result<()> {
     if file.exists() {
         bail!("file already exists: {}", file.display());
     }
 
     let mut feed = Feed::default();
-    feed.title = title.unwrap_or_else(|| "My Links".to_string());
-    feed.version = version.unwrap_or(1);
+    feed.title = title;
+    feed.version = version;
 
     let modified_feed = write_feed(&file, feed)?;
     eprintln!(
