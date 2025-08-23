@@ -162,6 +162,20 @@ fn cmd_add(
     };
 
     let derived_id = id.unwrap_or_else(|| derive_id(&url, &date));
+
+    if let Some(pos) = feed.links.iter().position(|l| l.id == derived_id) {
+        let l = &mut feed.links[pos];
+        l.title = title.clone();
+        l.url = url.clone();
+        l.date = date;
+        l.summary = summary.unwrap_or_default();
+        l.tags = parse_tags(tags);
+        l.via = via.unwrap_or_default();
+        write_feed(&file, feed)?;
+        eprintln!("Updated existing link (id: {})", derived_id);
+        return Ok(());
+    }
+
     let link = Link {
         id: derived_id,
         title,

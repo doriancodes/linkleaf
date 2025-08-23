@@ -130,4 +130,3 @@ cargo build
 - Export feeds to JSON, Markdown.
 - Import from bookmark managers or RSS.
 - Filtering and searching links by tags or date.
-- Sanitise input (remove duplicates)
