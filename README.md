@@ -11,19 +11,27 @@
   Manage <strong>protobuf-only</strong> Linkleaf feeds (<code>linkleaf.v1</code>) within your terminal.
 </p>
 
+<p align="center">
+  <a href="https://github.com/OWNER/REPO/actions/workflows/ci.yml">
+    <img alt="CI" src="https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg">
+  </a>
+</p>
+
 ---
 
-linkleaf-rs is a simple, protobuf-backed feed manager for storing and organizing links.
+`linkleaf-rs` is a simple, protobuf-backed feed manager for storing and organizing links.
 It uses a Protocol Buffers schema to define a portable, versioned format for feeds and individual link entries.
 
-The command-line interface (linkleaf) lets you create a feed, add links, and inspect your stored data — all while persisting to a compact .pb file.
+The command-line interface (`linkleaf`) lets you create a feed, add links, list/inspect entries, render a static HTML page, and publish updates to a git remote—persisting everything to a compact `.pb` file.
 
 ## Features
-- Portable format — uses protobuf messages (Feed, Link) for long-term stability.
-- Add links with title, URL, date, tags, summary, and optional referrer.
-- Deterministic IDs — default ID derived from sha256(url|date)[:12].
-- Local storage — feeds saved as a single binary .pb file.
-- CLI commands for initialization, adding entries, listing, and pretty-printing.
+
+- **Portable format** — uses protobuf messages (`Feed`, `Link`) for long-term stability.
+- **Minimal metadata** — title, URL, date (auto), tags, optional summary/referrer.
+- **Deterministic IDs** — default ID: `sha256(url|date)[:12]` (you can override with `--id`).
+- **Local-first** — single binary `.pb` file; no server required.
+- **HTML export** — render a minimal static page (optionally with a `style.css`).
+- **Git publish** — stage, commit and push your feed to any git remote.
 
 ## Usage
 
@@ -35,27 +43,64 @@ linkleaf html    [FILE] [--out <HTML>] [--title <PAGE_TITLE>]
 linkleaf publish [FILE] [--remote <NAME>] [-b|--branch <BRANCH>] [-m|--message <MSG>] [--allow-empty] [--no-push]
 ```
 
+## Defaults
+- `FILE` defaults to `feed/mylinks.pb` for all commands.
+- `html --out` defaults to `assets/index.html`.
+- `add` uses today’s date automatically (`YYYY-MM-DD`, UTC).
+- `--tags` is comma-separated (e.g., `rust,book,learning`).
+- `add` **updates** an existing entry when the (derived or explicit) ID already exists.
+
+## Examples
 ### Initialize a feed
+Create the default feed in `feed/mylinks.pb`:
 ```bash
 linkleaf init
 ```
-Creates a new feed file with optional title and version.
+Custom location, title and version:
+```bash
+linkleaf init my/links.pb --title "Reading List" --version 1
+```
 
 ### Add a link
-```bash
-linkleaf add --title "The Rust Book" \
-  --url "https://doc.rust-lang.org/book/" \
-  -g rust,learning,book \
-  --via "https://rust-lang.org"
+Basic add (date is auto):
 
+```bash
 linkleaf --title "Tokio - Asynchronous Rust" \
   --url "https://tokio.rs/"
 ```
 
+With summary, tags and via:
+
+```bash
+linkleaf add --title "Tokio — Async Rust" \
+  --url "https://tokio.rs/" \
+  --summary "The async runtime for Rust" \
+  -g rust,async,tokio \
+  --via "https://github.com/tokio-rs"
+```
 If no --id is given, one is derived automatically.
+Explicit ID (overrides the derived one):
 
-### List links (short view)
+```bash
+linkleaf add --title "Serde" \
+  --url "https://serde.rs/" \
+  --id 123abc456def
+```
+Update an existing entry (same derived/explicit ID):
 
+```bash
+# Re-adding same URL on the same day reuses the same derived ID → updates fields
+linkleaf add --title "Tokio — Asynchronous Rust" \
+  --url "https://tokio.rs/" \
+  --summary "Updated summary"
+```
+Use a non-default feed path:
+```bash
+linkleaf add my/links.pb --title "Prost" --url "https://docs.rs/prost"
+```
+
+### List links
+Compact view:
 ```bash
 linkleaf list
 ```
@@ -69,8 +114,8 @@ Feed: 'My Links' (v1) — 2 links
   2. 2025-08-23  The Rust Book [rust,learning,book]
      https://doc.rust-lang.org/book/
 ```
+Detailed (multi-line) view:
 
-### List links (detailed view)
 ```bash
 linkleaf list -l
 ```
@@ -90,10 +135,16 @@ Feed: 'My Links' (v1)
   tags: rust, learning, book
 ```
 ### Render to HTML
+Render the default feed to a static page:
 
 ```bash
-linkleaf html feed/mylinks.pb --out assets/index.html --title "My Links"
+linkleaf html
 ```
+Render a custom feed path:
+```bash
+linkleaf html my/links.pb --out public/index.html
+```
+
 ### Publish to a git repo
 ```bash
 # Commit and push feed/mylinks.pb to the current upstream
@@ -110,6 +161,9 @@ linkleaf publish --remote origin
 
 # Commit only (don’t push)
 linkleaf publish --no-push
+
+# Allow an empty commit (e.g., to trigger CI):
+linkleaf publish --allow-empty -m "chore: trigger build"
 ```
 
 ## Feed Schema
