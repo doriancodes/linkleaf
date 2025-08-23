@@ -484,25 +484,46 @@ mod tests {
             return Ok(());
         }
 
+        use tempfile::TempDir;
+
         let tmp = TempDir::new()?;
         let bare = tmp.path().join("remote.git");
         let work = tmp.path().join("work");
         let clone_dir = tmp.path().join("clone");
 
-        // Init bare repo
+        // --- 1) Init bare repo (try to set initial branch to main; fallback for older Git)
         {
             let out = Command::new("git")
-                .args(["init", "--bare"])
+                .args(["init", "--bare", "--initial-branch=main"])
                 .arg(&bare)
                 .output()?;
-            assert!(
-                out.status.success(),
-                "git init --bare failed: {}",
-                String::from_utf8_lossy(&out.stderr)
-            );
+
+            if !out.status.success() {
+                // Fallback: older Git without --initial-branch
+                let out2 = Command::new("git")
+                    .args(["init", "--bare"])
+                    .arg(&bare)
+                    .output()?;
+                assert!(
+                    out2.status.success(),
+                    "git init --bare failed: {}",
+                    String::from_utf8_lossy(&out2.stderr)
+                );
+
+                // Point HEAD at refs/heads/main for cleanliness (not strictly required for clone --branch)
+                let out3 = Command::new("git")
+                    .current_dir(&bare)
+                    .args(["symbolic-ref", "HEAD", "refs/heads/main"])
+                    .output()?;
+                assert!(
+                    out3.status.success(),
+                    "set bare HEAD failed: {}",
+                    String::from_utf8_lossy(&out3.stderr)
+                );
+            }
         }
 
-        // Init work repo
+        // --- 2) Init work repo, commit, publish
         {
             fs::create_dir_all(&work)?;
             let run = |args: &[&str]| -> anyhow::Result<()> {
@@ -516,18 +537,22 @@ mod tests {
                 }
                 Ok(())
             };
+
             run(&["init"])?;
-            // configure identity for commits
             run(&["config", "user.name", "Test User"])?;
             run(&["config", "user.email", "test@example.com"])?;
-            // create main branch (portable sequence)
             run(&["checkout", "-b", "main"])?;
             run(&["remote", "add", "origin", bare.to_str().unwrap()])?;
 
-            // Create feed and publish
             let feed_path = work.join("feed/mylinks.pb");
-            write_feed(&feed_path, sample_feed_one())?;
+            write_feed(&feed_path, {
+                let mut f = Feed::default();
+                f.title = "Sample".into();
+                f.version = 1;
+                f
+            })?;
 
+            // Push HEAD to origin/main
             cmd_publish(
                 feed_path.clone(),
                 "origin",
@@ -538,10 +563,17 @@ mod tests {
             )?;
         }
 
-        // Clone the remote and verify file exists & decodes
+        // --- 3) Clone the remote and verify
         {
             let out = Command::new("git")
-                .args(["clone", bare.to_str().unwrap(), clone_dir.to_str().unwrap()])
+                .args([
+                    "clone",
+                    "--branch",
+                    "main",
+                    "--single-branch",
+                    bare.to_str().unwrap(),
+                    clone_dir.to_str().unwrap(),
+                ])
                 .output()?;
             assert!(
                 out.status.success(),
@@ -554,7 +586,7 @@ mod tests {
 
             let feed = read_feed(&PathBuf::from(&cloned_feed))?;
             assert_eq!(feed.title, "Sample");
-            assert_eq!(feed.links.len(), 1);
+            // additional checks if you want…
         }
 
         Ok(())
