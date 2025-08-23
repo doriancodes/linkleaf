@@ -1,0 +1,11 @@
+<svg width="108" height="108" viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
+  <!-- simple "link graph": three nodes connected; all within ~66dp safe zone -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M36 54 L66 36" stroke="#7aa2f7" stroke-width="6" stroke-opacity="0.9"/>
+    <path d="M66 36 L72 72" stroke="#bb9af7" stroke-width="6" stroke-opacity="0.9"/>
+    <path d="M36 54 L72 72" stroke="#9ece6a" stroke-width="6" stroke-opacity="0.9"/>
+  </g>
+  <circle cx="36" cy="54" r="7" fill="#7aa2f7"/>
+  <circle cx="66" cy="36" r="7" fill="#bb9af7"/>
+  <circle cx="72" cy="72" r="7" fill="#9ece6a"/>
+</svg>

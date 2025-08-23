@@ -1,5 +1,17 @@
-# linkleaf-rs
+#<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="logo-monochrome.svg">
+    <img alt="Linkleaf" src="logo.svg" width="420">
+  </picture>
+</p>
 
+<h1 align="center">Linkleaf-rs</h1>
+
+<p align="center">
+  Manage <strong>protobuf-only</strong> Linkleaf feeds (<code>linkleaf.v1</code>) within your terminal.
+</p>
+
+--- 
 
 linkleaf-rs is a simple, protobuf-backed feed manager for storing and organizing links.
 It uses a Protocol Buffers schema to define a portable, versioned format for feeds and individual link entries.
