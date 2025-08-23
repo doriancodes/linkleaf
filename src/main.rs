@@ -4,8 +4,8 @@ use anyhow::{Context, Result, bail};
 use askama::Template;
 use clap::{Args, Parser, Subcommand};
 use linkleaf_rs::feed::{read_feed, write_feed};
+use linkleaf_rs::html::{FeedPage, FeedView, LinkView};
 use linkleaf_rs::linkleaf_proto::{Feed, Link};
-use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{fs, io::Write};
 use time::OffsetDateTime;
@@ -218,7 +218,7 @@ fn cmd_list(file: PathBuf, long: bool) -> Result<()> {
     Ok(())
 }
 
-fn long_print(feed: Feed) -> Result<()> {
+fn long_print(feed: Feed) {
     println!("Feed: '{}' (v{})\n", feed.title, feed.version);
     for l in &feed.links {
         println!("- [{}] {}", l.date, l.title);
@@ -235,7 +235,6 @@ fn long_print(feed: Feed) -> Result<()> {
         }
         println!();
     }
-    Ok(())
 }
 
 fn parse_tags(raw: Option<String>) -> Vec<String> {
@@ -263,30 +262,6 @@ fn is_not_found(err: &anyhow::Error) -> bool {
     err.downcast_ref::<std::io::Error>()
         .map(|e| e.kind() == std::io::ErrorKind::NotFound)
         .unwrap_or(false)
-}
-
-#[derive(serde::Serialize)]
-struct LinkView {
-    title: String,
-    url: String,
-    date: String,
-    summary: String,
-    via: String,
-    has_tags: bool,
-    tags_joined: String,
-}
-
-#[derive(Serialize)]
-struct FeedView {
-    title: String,
-    count: usize,
-    links: Vec<LinkView>,
-}
-
-#[derive(Template)]
-#[template(path = "feed.html", escape = "html")]
-struct FeedPage<'a> {
-    feed: &'a FeedView,
 }
 
 fn cmd_html(file: PathBuf, out: PathBuf, custom_title: Option<String>) -> Result<()> {
