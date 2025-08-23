@@ -1,8 +1,7 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use linkleaf::command::{cmd_add, cmd_html, cmd_init, cmd_list, cmd_publish};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "linkleaf", about = "protobuf-only feed manager (linkleaf.v1)")]

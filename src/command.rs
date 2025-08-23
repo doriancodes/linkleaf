@@ -586,7 +586,6 @@ mod tests {
 
             let feed = read_feed(&PathBuf::from(&cloned_feed))?;
             assert_eq!(feed.title, "Sample");
-            // additional checks if you want…
         }
 
         Ok(())

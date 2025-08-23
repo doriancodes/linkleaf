@@ -28,11 +28,11 @@ The command-line interface (linkleaf) lets you create a feed, add links, and ins
 ## Usage
 
 ```bash
-linkleaf init <FILE> [--title <TITLE>] [--version <N>]
-linkleaf add  <FILE> --title <TITLE> --url <URL> [--summary <S>] [--tags <CSV>] [--via <URL>] [--id <ID>]
-linkleaf list <FILE>
-linkleaf print <FILE>
-linkleaf html <FILE> --out <HTML> [--title <PAGE_TITLE>]
+linkleaf init    [FILE] [--title <TITLE>] [--version <N>]
+linkleaf add     [FILE] --title <TITLE> --url <URL> [--summary <S>] [--tags <CSV>] [--via <URL>] [--id <ID>]
+linkleaf list    [FILE] [-l|--long]
+linkleaf html    [FILE] [--out <HTML>] [--title <PAGE_TITLE>]
+linkleaf publish [FILE] [--remote <NAME>] [-b|--branch <BRANCH>] [-m|--message <MSG>] [--allow-empty] [--no-push]
 ```
 
 ### Initialize a feed
