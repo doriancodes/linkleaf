@@ -202,6 +202,7 @@ cargo build
 - Create Atom/RSS feed from feed
 
 ## TODO (immediately)
+- Populate name from link (automatic)
 - Document library
 - Expose upsert
 - Datetime instead of date
