@@ -199,4 +199,10 @@ cargo build
 
 - Export feeds to JSON, Markdown.
 - Import from bookmark managers or RSS.
+- Create Atom/RSS feed from feed
+
+## TODO (immediately)
+- Document library
+- Expose upsert
+- Datetime instead of date
 - Filtering and searching links by tags or date.
