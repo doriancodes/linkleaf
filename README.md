@@ -200,6 +200,7 @@ cargo build
 - Export feeds to JSON, Markdown.
 - Import from bookmark managers or RSS.
 - Create Atom/RSS feed from feed
+- Signatures for feeds
 
 ## TODO (immediately)
 - Populate name from link (automatic)
