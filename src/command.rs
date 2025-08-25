@@ -1,13 +1,10 @@
-use crate::feed::{read_feed, write_feed};
-use crate::html::{FeedPage, FeedView, LinkView};
-use crate::linkleaf_proto::{Feed, Link};
 use anyhow::{Context, Result, bail};
-use askama::Template;
-use sha2::{Digest, Sha256};
+use linkleaf::api::{add, html, list};
+use linkleaf::feed::{read_feed, write_feed};
+use linkleaf::linkleaf_proto::{Feed, Link};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{fs, io::Write};
-use time::OffsetDateTime;
 
 pub fn cmd_init(file: PathBuf, title: String, version: u32) -> Result<()> {
     if file.exists() {
@@ -37,58 +34,12 @@ pub fn cmd_add(
     via: Option<String>,
     id: Option<String>,
 ) -> Result<()> {
-    let date = OffsetDateTime::now_utc().date().to_string(); // "YYYY-MM-DD"
-    let mut feed = match read_feed(&file) {
-        Ok(f) => f,
-        Err(err) if is_not_found(&err) => {
-            let mut f = Feed::default();
-            f.version = 1;
-            f
-        }
-        Err(err) => return Err(err),
-    };
-
-    let derived_id = id.unwrap_or_else(|| derive_id(&url, &date));
-
-    if let Some(pos) = feed.links.iter().position(|l| l.id == derived_id) {
-        let l = &mut feed.links[pos];
-        l.title = title.clone();
-        l.url = url.clone();
-        l.date = date;
-        l.summary = summary.unwrap_or_default();
-        l.tags = parse_tags(tags);
-        l.via = via.unwrap_or_default();
-        write_feed(&file, feed)?;
-        eprintln!("Updated existing link (id: {})", derived_id);
-        return Ok(());
-    }
-
-    let link = Link {
-        id: derived_id,
-        title,
-        url,
-        date,
-        summary: summary.unwrap_or_default(),
-        tags: parse_tags(tags),
-        via: via.unwrap_or_default(),
-    };
-
-    let mut new_links = Vec::with_capacity(feed.links.len() + 1);
-    new_links.push(link);
-    new_links.extend(feed.links.into_iter());
-    feed.links = new_links;
-
-    let modified_feed = write_feed(&file, feed)?;
-    eprintln!(
-        "Added link (total {}): {}",
-        modified_feed.links.len(),
-        file.display()
-    );
+    add(file, title, url, summary, tags, via, id)?;
     Ok(())
 }
 
 pub fn cmd_list(file: PathBuf, long: bool) -> Result<()> {
-    let feed = read_feed(&file)?;
+    let feed = list(&file)?;
 
     if long {
         long_print(feed);
@@ -138,74 +89,8 @@ fn long_print(feed: Feed) {
     }
 }
 
-fn parse_tags(raw: Option<String>) -> Vec<String> {
-    raw.map(|s| {
-        s.split(',')
-            .map(|t| t.trim())
-            .filter(|t| !t.is_empty())
-            .map(|t| t.to_string())
-            .collect()
-    })
-    .unwrap_or_default()
-}
-
-fn derive_id(url: &str, date: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(url.as_bytes());
-    hasher.update(b"|");
-    hasher.update(date.as_bytes());
-    let digest = hasher.finalize();
-    let hexed = hex::encode(digest);
-    hexed[..12].to_string()
-}
-
-fn is_not_found(err: &anyhow::Error) -> bool {
-    err.downcast_ref::<std::io::Error>()
-        .map(|e| e.kind() == std::io::ErrorKind::NotFound)
-        .unwrap_or(false)
-}
-
 pub fn cmd_html(file: PathBuf, out: PathBuf, custom_title: Option<String>) -> Result<()> {
-    let feed = read_feed(&file)?;
-
-    // map proto → template view; keep it minimal
-    let title = custom_title.unwrap_or_else(|| {
-        let t = feed.title.trim();
-        if t.is_empty() {
-            "My Links".into()
-        } else {
-            t.into()
-        }
-    });
-    let links: Vec<LinkView> = feed
-        .links
-        .iter()
-        .map(|l| {
-            let has_tags = !l.tags.is_empty();
-            let tags_joined = if has_tags {
-                l.tags.join(", ")
-            } else {
-                String::new()
-            };
-            LinkView {
-                title: l.title.clone(),
-                url: l.url.clone(),
-                date: l.date.clone(),
-                summary: l.summary.clone(),
-                via: l.via.clone(),
-                has_tags,
-                tags_joined,
-            }
-        })
-        .collect();
-
-    let view = FeedView {
-        title,
-        count: links.len(),
-        links,
-    };
-    let page = FeedPage { feed: &view };
-    let html = page.render().context("failed to render HTML")?;
+    let html = html(file, custom_title)?;
 
     // write atomically (same pattern as write_feed)
     if let Some(parent) = out.parent() {
@@ -375,7 +260,7 @@ fn git_check(args: &[&str], what: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::linkleaf_proto::{Feed, Link};
+    use linkleaf::linkleaf_proto::{Feed, Link};
     use tempfile::TempDir;
 
     fn sample_feed_one() -> Feed {
@@ -589,24 +474,5 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    // (optional) tiny helpers unit-tests
-
-    #[test]
-    fn parse_tags_various_whitespace() {
-        assert_eq!(super::parse_tags(None), Vec::<String>::new());
-        assert_eq!(
-            super::parse_tags(Some("a, b,  ,c".into())),
-            vec!["a", "b", "c"]
-        );
-    }
-
-    #[test]
-    fn derive_id_is_stable() {
-        let a = super::derive_id("https://x", "2025-08-23");
-        let b = super::derive_id("https://x", "2025-08-23");
-        assert_eq!(a, b);
-        assert_eq!(a.len(), 12);
     }
 }
