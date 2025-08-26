@@ -204,7 +204,9 @@ cargo build
 
 ## TODO (immediately)
 - Populate name from link (automatic)
-- Document library
-- Expose upsert
+- Document library - done
+- Expose upsert - done
+- Improve error handling, specific error types
+- rewrite missing tests
 - Datetime instead of date
 - Filtering and searching links by tags or date.

@@ -1,11 +1,122 @@
-use crate::feed::{read_feed, write_feed};
 use crate::html::{FeedPage, FeedView, LinkView};
 use crate::linkleaf_proto::{Feed, Link};
 use anyhow::{Context, Result};
 use askama::Template;
+use prost::Message;
 use sha2::{Digest, Sha256};
-use std::path::PathBuf;
+use std::{fs, io::Write, path::PathBuf};
 use time::OffsetDateTime;
+
+/// Read a protobuf feed from disk.
+///
+/// ## Behavior
+/// - Reads the entire file at `path` into memory.
+/// - Decodes the bytes into a [`Feed`] using `prost`’s `Message::decode`.
+///
+/// ## Arguments
+/// - `path`: Path to the `.pb` file to read.
+///
+/// ## Returns
+/// The decoded [`Feed`] on success.
+///
+/// ## Errors
+/// - I/O errors from [`fs::read`], wrapped with context
+///   `"failed to read {path}"`.
+/// - Protobuf decode errors from `Feed::decode`, wrapped with context
+///   `"failed to decode protobuf: {path}"`.
+/// - The error type is [`anyhow::Error`] via your crate-wide `Result`.
+///
+/// ## Example
+/// ```no_run
+/// use std::path::PathBuf;
+/// use linkleaf::api::read_feed;
+/// use anyhow::Result;
+///
+/// fn main() -> Result<()> {
+///     let path = PathBuf::from("mylinks.pb");
+///     let feed = read_feed(&path)?;
+///     println!("title: {}, links: {}", feed.title, feed.links.len());
+///     Ok::<(), anyhow::Error>(())
+/// }
+/// ```
+pub fn read_feed(path: &PathBuf) -> Result<Feed> {
+    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+    Feed::decode(&*bytes).with_context(|| format!("failed to decode protobuf: {}", path.display()))
+}
+
+/// Write a protobuf feed to disk **atomically** (best-effort).
+///
+/// ## Behavior
+/// - Ensures the parent directory of `path` exists (creates it if needed).
+/// - Encodes `feed` to a temporary file with extension `".pb.tmp"`.
+/// - Flushes and then renames the temp file over `path`.
+///   - On Unix/POSIX, the rename is atomic when source and destination are on
+///     the same filesystem.
+///   - On Windows, `rename` may fail if the destination exists; this function
+///     forwards that error as-is.
+///
+/// The input `feed` is consumed and returned unchanged on success to make
+/// call sites ergonomic.
+///
+/// ## Arguments
+/// - `path`: Destination path of the `.pb` file.
+/// - `feed`: The feed to persist (consumed).
+///
+/// ## Returns
+/// The same [`Feed`] value that was written (handy for chaining).
+///
+/// ## Errors
+/// - Directory creation errors from [`fs::create_dir_all`], with context
+///   `"failed to create directory {dir}"`.
+/// - File creation/write/flush errors for the temporary file, with context
+///   `"failed to write {tmp}"`.
+/// - Rename errors when moving the temp file into place, with context
+///   `"failed to move temp file into place: {path}"`.
+/// - Protobuf encode errors from `feed.encode(&mut buf)`.
+/// - The error type is [`anyhow::Error`] via your crate-wide `Result`.
+///
+/// ## Example
+/// ```no_run
+/// use std::path::PathBuf;
+/// use linkleaf::api::{read_feed, write_feed};
+/// use anyhow::Result;
+///
+/// fn main() -> Result<()> {
+///     let path = PathBuf::from("mylinks.pb");
+///     let mut feed = read_feed(&path)?;        // or Feed { .. } if creating anew
+///     feed.title = "My Links".into();
+///     let written = write_feed(&path, feed)?;  // atomic write
+///     assert_eq!(written.title, "My Links");
+///     Ok(())
+/// }
+/// ```
+///
+/// ## Notes
+/// - Atomicity requires the temporary file and the destination to be on the
+///   **same filesystem**.
+/// - If multiple processes may write concurrently, consider adding a file lock
+///   around the write section.
+pub fn write_feed(path: &PathBuf, feed: Feed) -> Result<Feed> {
+    // Ensure parent directory exists (if any)
+    if let Some(dir) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        fs::create_dir_all(dir)
+            .with_context(|| format!("failed to create directory {}", dir.display()))?;
+    }
+
+    let mut buf = Vec::with_capacity(1024);
+    feed.encode(&mut buf)?;
+
+    let tmp = path.with_extension("pb.tmp");
+    {
+        let mut f =
+            fs::File::create(&tmp).with_context(|| format!("failed to write {}", tmp.display()))?;
+        f.write_all(&buf)?;
+        f.flush()?;
+    }
+    fs::rename(&tmp, path)
+        .with_context(|| format!("failed to move temp file into place: {}", path.display()))?;
+    Ok(feed)
+}
 
 fn is_not_found(err: &anyhow::Error) -> bool {
     err.downcast_ref::<std::io::Error>()

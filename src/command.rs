@@ -1,7 +1,6 @@
 use anyhow::{Context, Result, bail};
-use linkleaf::api::{add, html, list};
-use linkleaf::feed::{read_feed, write_feed};
-use linkleaf::linkleaf_proto::{Feed, Link};
+use linkleaf::api::{add, html, list, write_feed};
+use linkleaf::linkleaf_proto::Feed;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{fs, io::Write};
@@ -261,6 +260,7 @@ fn git_check(args: &[&str], what: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use linkleaf::api::read_feed;
     use linkleaf::linkleaf_proto::{Feed, Link};
     use tempfile::TempDir;
 
