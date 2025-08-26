@@ -34,6 +34,82 @@ fn parse_tags(raw: Option<String>) -> Vec<String> {
     .unwrap_or_default()
 }
 
+/// Add or update a link in a protobuf feed file, then persist the feed.
+///
+/// ## Behavior
+/// - Tries to read the feed at `file`. If the file does not exist, a new feed is
+///   initialized (`version = 1`).
+/// - If `id` matches an existing link, that link is **updated** (title, url,
+///   summary, tags, via) and its `date` is set to **today (UTC, `YYYY-MM-DD`)**.
+///   The updated link is moved to the **front** of the list (newest-first).
+/// - Otherwise a new link is **inserted at the front**. Its `id` is
+///   `derive_id(url, today)` unless `id` is provided.
+///
+/// Persists the whole feed by calling `write_feed`, which writes atomically
+/// via a temporary file + rename.
+///
+/// ## Arguments
+/// - `file`: Path to the `.pb` feed file to update/create.
+/// - `title`: Human-readable title for the link.
+/// - `url`: Target URL for the link.
+/// - `summary`: Optional blurb/notes (empty string if `None`).
+/// - `tags`: Optional tag list as a single string; parsed by `parse_tags`
+///   (e.g. `"rust, async, tokio"` → `["rust","async","tokio"]`).
+/// - `via`: Optional source/attribution (empty if `None`).
+/// - `id`: Optional stable identifier. If present, performs an **upsert** of that
+///   item. If absent, a new id is derived from `(url, today)`.
+///
+/// ## Returns
+/// The newly created or updated [`Link`].
+///
+/// ## Ordering
+/// Links are kept **newest-first**; both inserts and updates end up at index `0`.
+///
+/// ## Errors
+/// - Any error from `read_feed` (except “not found”) is returned.
+/// - Any error from `write_feed` is returned.
+/// - This function performs no inter-process locking; concurrent writers may race.
+///
+/// ## Example
+/// ```no_run
+/// use std::path::PathBuf;
+/// use linkleaf::api::*;
+///
+/// let file = PathBuf::from("mylinks.pb");
+///
+/// // Create a new link
+/// let a = add(
+///     file.clone(),
+///     "Tokio - Asynchronous Rust".into(),
+///     "https://tokio.rs/".into(),
+///     None,
+///     Some("rust, async, tokio".into()),
+///     None,
+///     None, // no id -> create
+/// )?;
+///
+/// // Update the same link by id (upsert)
+/// let a2 = add(
+///     file.clone(),
+///     "Tokio • Async Rust".into(),
+///     "https://tokio.rs/".into(),
+///     Some("A runtime for reliable async apps".into()),
+///     None,
+///     None,
+///     Some(a.id.clone()), // provide id -> update
+/// )?;
+///
+/// assert_eq!(a2.id, a.id);
+/// Ok::<(), anyhow::Error>(())
+/// // After update, the item is at the front (index 0).
+/// ```
+///
+/// ## Notes
+/// - Using a provided `id` gives you a stable identity even if `url` changes.
+///   If you rely on `derive_id(url, date)`, changing the URL or running on a
+///   different day may produce a different id.
+/// - `date` is always set to today (UTC) on both create and update. If you need
+///   separate `created_at`/`updated_at`, add explicit fields instead.
 pub fn add(
     file: PathBuf,
     title: String,
@@ -99,14 +175,74 @@ pub fn add(
     Ok(link)
 }
 
+// Read and return the feed stored in a protobuf file.
+///
+/// ## Behavior
+/// Simply calls [`read_feed`] on the provided path and returns the parsed [`Feed`].
+///
+/// ## Arguments
+/// - `file`: Path to the `.pb` feed file.
+///
+/// ## Returns
+/// The parsed [`Feed`] on success.
+///
+/// ## Errors
+/// Any error bubbled up from [`read_feed`], e.g. I/O errors (file missing,
+/// permissions), or decode errors if the file is not a valid feed.
+///
+/// ## Example
+/// ```no_run
+/// use std::path::PathBuf;
+/// use linkleaf::api::*;
+///
+/// let path = PathBuf::from("mylinks.pb");
+/// let feed = list(&path)?;
+/// println!("Title: {}, links: {}", feed.title, feed.links.len());
+/// Ok::<(), anyhow::Error>(())
+/// ```
 pub fn list(file: &PathBuf) -> Result<Feed> {
     let feed = read_feed(file)?;
     Ok(feed)
 }
 
-pub fn html<'a>(file: PathBuf, custom_title: Option<String>) -> Result<String> {
-    let feed = read_feed(&file)?;
-
+/// Render a [`Feed`] into a complete HTML page.
+///
+/// ## Behavior
+/// - Uses `custom_title` if provided; otherwise uses the trimmed feed title,
+///   falling back to `"My Links"` when empty.
+/// - Maps each link into a lightweight view model (`LinkView`) with:
+///   - `has_tags` — whether the link has any tags,
+///   - `tags_joined` — comma+space–joined tag string (empty if none).
+/// - Wraps the mapped data in a `FeedView` and renders via `FeedPage::render()`.
+///
+/// This function is purely presentational; it does not mutate or persist the feed.
+///
+/// ## Arguments
+/// - `feed`: The feed to render (consumed by value).
+/// - `custom_title`: Optional page title that overrides the feed’s title.
+///
+/// ## Returns
+/// A `String` containing the rendered HTML document.
+///
+/// ## Errors
+/// Returns an [`anyhow::Error`] if rendering fails (the error includes the
+/// context `"failed to render HTML"`). No I/O occurs here.
+///
+/// ## Example
+/// ```no_run
+/// use linkleaf::api::*;
+/// use linkleaf::linkleaf_proto::Feed;
+///
+/// let feed = Feed { title: "My Links".into(), version: 1, links: vec![] };
+/// let page = html(feed, None)?; // Result<String>
+/// Ok::<(), anyhow::Error>(())
+/// ```
+///
+/// ## Notes
+/// - Because `feed` is taken **by value**, it is consumed. If you need to reuse
+///   it after rendering, pass a clone or change the signature to accept `&Feed`.
+/// - Tag formatting is pre-joined for simple template usage.
+pub fn html(feed: Feed, custom_title: Option<String>) -> Result<String> {
     // map proto → template view; keep it minimal
     let title = custom_title.unwrap_or_else(|| {
         let t = feed.title.trim();

@@ -90,7 +90,8 @@ fn long_print(feed: Feed) {
 }
 
 pub fn cmd_html(file: PathBuf, out: PathBuf, custom_title: Option<String>) -> Result<()> {
-    let html = html(file, custom_title)?;
+    let feed = list(&file)?;
+    let html = html(feed, custom_title)?;
 
     // write atomically (same pattern as write_feed)
     if let Some(parent) = out.parent() {
