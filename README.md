@@ -210,3 +210,4 @@ cargo build
 - rewrite missing tests
 - Datetime instead of date
 - Filtering and searching links by tags or date.
+- fix cmd_html -> hardcoded path for style.css
