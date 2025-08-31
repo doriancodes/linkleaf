@@ -3,9 +3,9 @@ use crate::linkleaf_proto::{Feed, Link};
 use anyhow::{Context, Result};
 use askama::Template;
 use prost::Message;
-use sha2::{Digest, Sha256};
 use std::{fs, io::Write, path::PathBuf};
-use time::OffsetDateTime;
+use time::{OffsetDateTime, UtcOffset, macros::format_description};
+use uuid::Uuid;
 
 /// Read a protobuf feed from disk.
 ///
@@ -124,16 +124,6 @@ fn is_not_found(err: &anyhow::Error) -> bool {
         .unwrap_or(false)
 }
 
-fn derive_id(url: &str, date: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(url.as_bytes());
-    hasher.update(b"|");
-    hasher.update(date.as_bytes());
-    let digest = hasher.finalize();
-    let hexed = hex::encode(digest);
-    hexed[..12].to_string()
-}
-
 fn parse_tags(raw: Option<String>) -> Vec<String> {
     raw.map(|s| {
         s.split(',')
@@ -230,7 +220,12 @@ pub fn add(
     via: Option<String>,
     id: Option<String>,
 ) -> Result<Link> {
-    let date = OffsetDateTime::now_utc().date().to_string(); // "YYYY-MM-DD"
+    let now = OffsetDateTime::now_utc();
+    let offset = UtcOffset::current_local_offset().unwrap();
+    let local_now = now.to_offset(offset);
+    // Custom format: YYYY-MM-DD HH:MM:SS
+    let format = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+    let date = local_now.format(&format).unwrap();
     let mut feed = match read_feed(&file) {
         Ok(f) => f,
         Err(err) if is_not_found(&err) => {
@@ -241,9 +236,9 @@ pub fn add(
         Err(err) => return Err(err),
     };
 
-    let derived_id = id.unwrap_or_else(|| derive_id(&url, &date));
+    let _id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    if let Some(pos) = feed.links.iter().position(|l| l.id == derived_id) {
+    if let Some(pos) = feed.links.iter().position(|l| l.id == _id || l.url == url) {
         // take ownership
         let mut item = feed.links.remove(pos);
         // mutate
@@ -263,7 +258,7 @@ pub fn add(
     }
 
     let link = Link {
-        id: derived_id,
+        id: _id,
         title,
         url,
         date,
@@ -286,7 +281,7 @@ pub fn add(
     Ok(link)
 }
 
-// Read and return the feed stored in a protobuf file.
+/// Read and return the feed stored in a protobuf file.
 ///
 /// ## Behavior
 /// Simply calls [`read_feed`] on the provided path and returns the parsed [`Feed`].
@@ -475,13 +470,5 @@ mod tests {
             super::parse_tags(Some("a, b,  ,c".into())),
             vec!["a", "b", "c"]
         );
-    }
-
-    #[test]
-    fn derive_id_is_stable() {
-        let a = super::derive_id("https://x", "2025-08-23");
-        let b = super::derive_id("https://x", "2025-08-23");
-        assert_eq!(a, b);
-        assert_eq!(a.len(), 12);
     }
 }

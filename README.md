@@ -208,6 +208,6 @@ cargo build
 - Expose upsert - done
 - Improve error handling, specific error types
 - rewrite missing tests
-- Datetime instead of date
+- Datetime instead of date - done
 - Filtering and searching links by tags or date.
 - fix cmd_html -> hardcoded path for style.css
