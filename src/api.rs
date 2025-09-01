@@ -141,10 +141,11 @@ fn parse_tags(raw: Option<String>) -> Vec<String> {
 /// - Tries to read the feed at `file`. If the file does not exist, a new feed is
 ///   initialized (`version = 1`).
 /// - If `id` matches an existing link, that link is **updated** (title, url,
-///   summary, tags, via) and its `date` is set to **today (UTC, `YYYY-MM-DD`)**.
+///   summary, tags, via) and its `date` is set to **today (local date, `YYYY-MM-DD`)**.
 ///   The updated link is moved to the **front** of the list (newest-first).
 /// - Otherwise a new link is **inserted at the front**. Its `id` is
-///   `derive_id(url, today)` unless `id` is provided.
+///   `Uuid::new_v4()` unless `id` is provided. If the provided `id` is not a valid uuid,
+///   the function returns an error.
 ///
 /// Persists the whole feed by calling `write_feed`, which writes atomically
 /// via a temporary file + rename.
@@ -234,6 +235,8 @@ pub fn add(
     };
 
     let _id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    Uuid::parse_str(&_id)?;
 
     if let Some(pos) = feed.links.iter().position(|l| l.id == _id || l.url == url) {
         // take ownership

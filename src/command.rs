@@ -263,6 +263,7 @@ mod tests {
     use linkleaf::api::read_feed;
     use linkleaf::linkleaf_proto::{Feed, Link};
     use tempfile::TempDir;
+    use uuid::Uuid;
 
     fn sample_feed_one() -> Feed {
         let mut f = Feed::default();
@@ -298,6 +299,8 @@ mod tests {
         let tmp = TempDir::new()?;
         let path = tmp.path().join("feed.pb");
 
+        let _id = Uuid::new_v4();
+
         // Insert (file doesn't exist yet; implementation should create a v1 feed)
         cmd_add(
             path.clone(),
@@ -306,11 +309,11 @@ mod tests {
             Some("Great read".into()),
             Some("rust,book".into()),
             Some("https://rust-lang.org".into()),
-            Some("fixed-id".into()), // ensure deterministic update target
+            Some(_id.clone().to_string()), // ensure deterministic update target
         )?;
         let mut feed = read_feed(&PathBuf::from(&path))?;
         assert_eq!(feed.links.len(), 1);
-        assert_eq!(feed.links[0].id, "fixed-id");
+        assert_eq!(feed.links[0].id, _id.clone().to_string());
         assert_eq!(feed.links[0].title, "Rust Book");
 
         // Update same id: title & summary change; still one entry
@@ -321,7 +324,7 @@ mod tests {
             Some("Updated summary".into()),
             Some("rust,book".into()),
             None,
-            Some("fixed-id".into()),
+            Some(_id.into()),
         )?;
         feed = read_feed(&PathBuf::from(&path))?;
         assert_eq!(feed.links.len(), 1, "should update, not duplicate");

@@ -30,7 +30,7 @@ The command-line interface (`linkleaf`) lets you create a feed, add links, list/
 
 - **Portable format** — uses protobuf messages (`Feed`, `Link`) for long-term stability.
 - **Minimal metadata** — title, URL, date (auto), tags, optional summary/referrer.
-- **Deterministic IDs** — default ID: `sha256(url|date)[:12]` (you can override with `--id`).
+- **Deterministic IDs** — default ID: `uuid` (you can override with `--id`).
 - **Local-first** — single binary `.pb` file; no server required.
 - **HTML export** — render a minimal static page (optionally with a `style.css`).
 - **Git publish** — stage, commit and push your feed to any git remote.
