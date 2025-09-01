@@ -4,6 +4,24 @@ use linkleaf::linkleaf_proto::Feed;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{fs, io::Write};
+use time::{Date, macros::format_description};
+
+pub fn parse_date(s: &str) -> Result<Date, String> {
+    // Accept strictly "YYYY-MM-DD"
+    let fmt = format_description!("[year]-[month]-[day]");
+    Date::parse(s.trim(), &fmt).map_err(|e| e.to_string())
+}
+
+pub fn parse_tags(raw: &str) -> Result<Vec<String>, String> {
+    let tags = raw
+        .split(',')
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+        .map(|t| t.to_string())
+        .collect();
+
+    Ok(tags)
+}
 
 pub fn cmd_init(file: PathBuf, title: String, version: u32) -> Result<()> {
     if file.exists() {
@@ -37,8 +55,13 @@ pub fn cmd_add(
     Ok(())
 }
 
-pub fn cmd_list(file: PathBuf, long: bool) -> Result<()> {
-    let feed = list(&file)?;
+pub fn cmd_list(
+    file: PathBuf,
+    long: bool,
+    tags: Option<Vec<String>>,
+    date: Option<Date>,
+) -> Result<()> {
+    let feed = list(&file, tags, date)?;
 
     if long {
         long_print(feed);
@@ -89,7 +112,7 @@ fn long_print(feed: Feed) {
 }
 
 pub fn cmd_html(file: PathBuf, out: PathBuf, custom_title: Option<String>) -> Result<()> {
-    let feed = list(&file)?;
+    let feed = list(&file, None, None)?;
     let html = html(feed, custom_title)?;
 
     // write atomically (same pattern as write_feed)
@@ -340,8 +363,8 @@ mod tests {
         write_feed(&PathBuf::from(&path), sample_feed_one())?;
 
         // We don’t assert output formatting here; just ensure no panic/err.
-        cmd_list(path.clone(), false)?;
-        cmd_list(path.clone(), true)?;
+        cmd_list(path.clone(), false, None, None)?;
+        cmd_list(path.clone(), true, None, None)?;
         Ok(())
     }
 

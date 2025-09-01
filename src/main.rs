@@ -2,8 +2,11 @@ mod command;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-use command::{cmd_add, cmd_html, cmd_init, cmd_list, cmd_publish};
+use command::{cmd_add, cmd_html, cmd_init, cmd_list, cmd_publish, parse_date};
 use std::path::PathBuf;
+use time::Date;
+
+use crate::command::parse_tags;
 
 #[derive(Parser)]
 #[command(name = "linkleaf", about = "protobuf-only feed manager (linkleaf.v1)")]
@@ -66,6 +69,14 @@ struct ListArgs {
     /// Show detailed, multi-line output
     #[arg(short = 'l', long = "long", alias = "detail")]
     long: bool,
+
+    /// Filter by Tags (comma separated values)
+    #[arg(short, long, value_parser = parse_tags)]
+    tags: Option<Vec<String>>,
+
+    /// Filter by Date (YYYY-MM-DD)
+    #[arg(short, long, value_name = "YYYY-MM-DD", value_parser = parse_date)]
+    date: Option<Date>,
 }
 
 #[derive(Args)]
@@ -142,7 +153,7 @@ fn main() -> Result<()> {
             args.via,
             args.id,
         ),
-        Commands::List(args) => cmd_list(args.file, args.long),
+        Commands::List(args) => cmd_list(args.file, args.long, args.tags, args.date),
         Commands::Html(args) => cmd_html(args.file, args.out, args.title),
         Commands::Publish(args) => cmd_publish(
             args.file,

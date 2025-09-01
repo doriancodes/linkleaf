@@ -211,5 +211,5 @@ cargo build
 - Improve error handling, specific error types
 - rewrite missing tests
 - Datetime instead of date - done
-- Filtering and searching links by tags or date.
+- Filtering and searching links by tags or date. - done
 - fix cmd_html -> hardcoded path for style.css

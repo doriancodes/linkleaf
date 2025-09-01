@@ -4,8 +4,12 @@ use anyhow::{Context, Result};
 use askama::Template;
 use prost::Message;
 use std::{fs, io::Write, path::PathBuf};
-use time::{OffsetDateTime, UtcOffset, macros::format_description};
+use time::{Date, OffsetDateTime, UtcOffset, macros::format_description};
 use uuid::Uuid;
+
+pub struct Tags {
+    pub tags: Vec<String>,
+}
 
 /// Read a protobuf feed from disk.
 ///
@@ -302,12 +306,41 @@ pub fn add(
 /// use linkleaf::api::*;
 ///
 /// let path = PathBuf::from("mylinks.pb");
-/// let feed = list(&path)?;
+/// let feed = list(&path, None, None)?;
 /// println!("Title: {}, links: {}", feed.title, feed.links.len());
 /// Ok::<(), anyhow::Error>(())
 /// ```
-pub fn list(file: &PathBuf) -> Result<Feed> {
-    let feed = read_feed(file)?;
+pub fn list(file: &PathBuf, tags: Option<Vec<String>>, date: Option<Date>) -> Result<Feed> {
+    let mut feed = read_feed(file)?;
+
+    let tag_norms: Option<Vec<String>> = tags.map(|ts| {
+        ts.iter()
+            .map(|t| t.trim().to_ascii_lowercase())
+            .filter(|t| !t.is_empty())
+            .collect()
+    });
+
+    feed.links.retain(|l| {
+        let tag_ok = match &tag_norms {
+            Some(needles) => l
+                .tags
+                .iter()
+                .any(|t| needles.iter().any(|n| t.eq_ignore_ascii_case(n))),
+            None => true,
+        };
+
+        let date_ok = match date {
+            Some(p) => {
+                let format = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+                let parsed_date = OffsetDateTime::parse(&l.date, &format).unwrap();
+                parsed_date.date() == p
+            }
+            None => true,
+        };
+
+        tag_ok && date_ok
+    });
+
     Ok(feed)
 }
 
