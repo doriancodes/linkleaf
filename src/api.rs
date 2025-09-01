@@ -206,11 +206,8 @@ fn parse_tags(raw: Option<String>) -> Vec<String> {
 /// ```
 ///
 /// ## Notes
-/// - Using a provided `id` gives you a stable identity even if `url` changes.
-///   If you rely on `derive_id(url, date)`, changing the URL or running on a
-///   different day may produce a different id.
-/// - `date` is always set to today (UTC) on both create and update. If you need
-///   separate `created_at`/`updated_at`, add explicit fields instead.
+/// - Using a provided `id` gives you a stable identity and it is tied to the url.
+/// - `date` is always set to today (local time) on both create and update.
 pub fn add(
     file: PathBuf,
     title: String,
@@ -343,11 +340,6 @@ pub fn list(file: &PathBuf) -> Result<Feed> {
 /// let page = html(feed, None)?; // Result<String>
 /// Ok::<(), anyhow::Error>(())
 /// ```
-///
-/// ## Notes
-/// - Because `feed` is taken **by value**, it is consumed. If you need to reuse
-///   it after rendering, pass a clone or change the signature to accept `&Feed`.
-/// - Tag formatting is pre-joined for simple template usage.
 pub fn html(feed: Feed, custom_title: Option<String>) -> Result<String> {
     // map proto → template view; keep it minimal
     let title = custom_title.unwrap_or_else(|| {

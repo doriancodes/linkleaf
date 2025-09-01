@@ -24,6 +24,8 @@ It uses a Protocol Buffers schema to define a portable, versioned format for fee
 
 The command-line interface (`linkleaf`) lets you create a feed, add links, list/inspect entries, render a static HTML page, and publish updates to a git remote—persisting everything to a compact `.pb` file.
 
+**Please note**: while `linkleaf-rs` provides both a cli app and a public API to be used in other projects, it is being actively developed and thus the specifications can change between versions.
+
 ## Features
 
 - **Portable format** — uses protobuf messages (`Feed`, `Link`) for long-term stability.
