@@ -1,12 +1,13 @@
 mod command;
+mod validation;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-use command::{cmd_add, cmd_html, cmd_init, cmd_list, cmd_publish, parse_date};
+use command::{cmd_add, cmd_html, cmd_init, cmd_list, cmd_publish};
 use std::path::PathBuf;
 use time::Date;
-
-use crate::command::parse_tags;
+use uuid::Uuid;
+use validation::{parse_date, parse_tags};
 
 #[derive(Parser)]
 #[command(name = "linkleaf", about = "protobuf-only feed manager (linkleaf.v1)")]
@@ -122,7 +123,7 @@ struct AddArgs {
 
     /// Override auto id (defaults to sha256(url|date)[:12])
     #[arg(long)]
-    id: Option<String>,
+    id: Option<Uuid>,
 }
 
 #[derive(Args)]

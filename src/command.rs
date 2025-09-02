@@ -4,24 +4,8 @@ use linkleaf::linkleaf_proto::Feed;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{fs, io::Write};
-use time::{Date, macros::format_description};
-
-pub fn parse_date(s: &str) -> Result<Date, String> {
-    // Accept strictly "YYYY-MM-DD"
-    let fmt = format_description!("[year]-[month]-[day]");
-    Date::parse(s.trim(), &fmt).map_err(|e| e.to_string())
-}
-
-pub fn parse_tags(raw: &str) -> Result<Vec<String>, String> {
-    let tags = raw
-        .split(',')
-        .map(|t| t.trim())
-        .filter(|t| !t.is_empty())
-        .map(|t| t.to_string())
-        .collect();
-
-    Ok(tags)
-}
+use time::Date;
+use uuid::Uuid;
 
 pub fn cmd_init(file: PathBuf, title: String, version: u32) -> Result<()> {
     if file.exists() {
@@ -49,7 +33,7 @@ pub fn cmd_add(
     summary: Option<String>,
     tags: Option<String>,
     via: Option<String>,
-    id: Option<String>,
+    id: Option<Uuid>,
 ) -> Result<()> {
     add(file, title, url, summary, tags, via, id)?;
     Ok(())
@@ -332,7 +316,7 @@ mod tests {
             Some("Great read".into()),
             Some("rust,book".into()),
             Some("https://rust-lang.org".into()),
-            Some(_id.clone().to_string()), // ensure deterministic update target
+            Some(_id.clone()), // ensure deterministic update target
         )?;
         let mut feed = read_feed(&PathBuf::from(&path))?;
         assert_eq!(feed.links.len(), 1);

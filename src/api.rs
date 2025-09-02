@@ -7,10 +7,6 @@ use std::{fs, io::Write, path::PathBuf};
 use time::{Date, OffsetDateTime, UtcOffset, macros::format_description};
 use uuid::Uuid;
 
-pub struct Tags {
-    pub tags: Vec<String>,
-}
-
 /// Read a protobuf feed from disk.
 ///
 /// ## Behavior
@@ -139,13 +135,64 @@ fn parse_tags(raw: Option<String>) -> Vec<String> {
     .unwrap_or_default()
 }
 
+fn update_link_in_place(
+    feed: &mut Feed,
+    pos: usize,
+    title: String,
+    url: String,
+    date: String,
+    summary: Option<String>,
+    tags: Option<String>,
+    via: Option<String>,
+) -> Link {
+    // take ownership, mutate, then reinsert at front
+    let mut item = feed.links.remove(pos);
+    item.title = title;
+    item.url = url;
+    item.date = date;
+    item.summary = summary.unwrap_or_default();
+    item.tags = parse_tags(tags);
+    item.via = via.unwrap_or_default();
+
+    feed.links.insert(0, item.clone());
+    item
+}
+
+fn insert_new_link_front(
+    feed: &mut Feed,
+    id: String,
+    title: String,
+    url: String,
+    date: String,
+    summary: Option<String>,
+    tags: Option<String>,
+    via: Option<String>,
+) -> Link {
+    let link = Link {
+        id,
+        title,
+        url,
+        date,
+        summary: summary.unwrap_or_default(),
+        tags: parse_tags(tags),
+        via: via.unwrap_or_default(),
+    };
+
+    let mut new_links = Vec::with_capacity(feed.links.len() + 1);
+    new_links.push(link.clone());
+    new_links.extend(feed.links.drain(..));
+    feed.links = new_links;
+
+    link
+}
+
 /// Add or update a link in a protobuf feed file, then persist the feed.
 ///
 /// ## Behavior
 /// - Tries to read the feed at `file`. If the file does not exist, a new feed is
 ///   initialized (`version = 1`).
-/// - If `id` matches an existing link, that link is **updated** (title, url,
-///   summary, tags, via) and its `date` is set to **today (local date, `YYYY-MM-DD`)**.
+/// - If `id` or `url` matches an existing link, that link is **updated** (title, url,
+///   summary, tags, via) and its `date` is set to **today (local datetime, `YYYY-MM-DD HH:MM:SS`)**.
 ///   The updated link is moved to the **front** of the list (newest-first).
 /// - Otherwise a new link is **inserted at the front**. Its `id` is
 ///   `Uuid::new_v4()` unless `id` is provided. If the provided `id` is not a valid uuid,
@@ -163,7 +210,7 @@ fn parse_tags(raw: Option<String>) -> Vec<String> {
 ///   (e.g. `"rust, async, tokio"` → `["rust","async","tokio"]`).
 /// - `via`: Optional source/attribution (empty if `None`).
 /// - `id`: Optional stable identifier. If present, performs an **upsert** of that
-///   item. If absent, a new id is derived from `(url, today)`.
+///   item. If absent, it generates a UUID v4.
 ///
 /// ## Returns
 /// The newly created or updated [`Link`].
@@ -180,6 +227,7 @@ fn parse_tags(raw: Option<String>) -> Vec<String> {
 /// ```no_run
 /// use std::path::PathBuf;
 /// use linkleaf::api::*;
+/// use uuid::Uuid;
 ///
 /// let file = PathBuf::from("mylinks.pb");
 ///
@@ -195,6 +243,7 @@ fn parse_tags(raw: Option<String>) -> Vec<String> {
 /// )?;
 ///
 /// // Update the same link by id (upsert)
+/// let _id = Uuid::parse_str(&a.id)?;
 /// let a2 = add(
 ///     file.clone(),
 ///     "Tokio • Async Rust".into(),
@@ -202,7 +251,7 @@ fn parse_tags(raw: Option<String>) -> Vec<String> {
 ///     Some("A runtime for reliable async apps".into()),
 ///     None,
 ///     None,
-///     Some(a.id.clone()), // provide id -> update
+///     Some(_id), // provide id -> update
 /// )?;
 ///
 /// assert_eq!(a2.id, a.id);
@@ -220,14 +269,16 @@ pub fn add(
     summary: Option<String>,
     tags: Option<String>,
     via: Option<String>,
-    id: Option<String>,
+    id: Option<Uuid>,
 ) -> Result<Link> {
+    // compute local timestamp once
     let now = OffsetDateTime::now_utc();
     let offset = UtcOffset::current_local_offset().unwrap();
     let local_now = now.to_offset(offset);
-    // Custom format: YYYY-MM-DD HH:MM:SS
-    let format = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
-    let date = local_now.format(&format).unwrap();
+    let fmt = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+    let date = local_now.format(&fmt).unwrap();
+
+    // read or init feed
     let mut feed = match read_feed(&file) {
         Ok(f) => f,
         Err(err) if is_not_found(&err) => {
@@ -238,57 +289,55 @@ pub fn add(
         Err(err) => return Err(err),
     };
 
-    let _id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-
-    Uuid::parse_str(&_id)?;
-
-    if let Some(pos) = feed.links.iter().position(|l| l.id == _id || l.url == url) {
-        // take ownership
-        let mut item = feed.links.remove(pos);
-        // mutate
-        item.title = title;
-        item.url = url;
-        item.date = date;
-        item.summary = summary.unwrap_or_default();
-        item.tags = parse_tags(tags);
-        item.via = via.unwrap_or_default();
-
-        // put newest/updated first
-        feed.links.insert(0, item.clone());
-
-        write_feed(&file, feed)?;
-        eprintln!("Updated existing link (id: {})", item.id);
-        return Ok(item);
-    }
-
-    let link = Link {
-        id: _id,
-        title,
-        url,
-        date,
-        summary: summary.unwrap_or_default(),
-        tags: parse_tags(tags),
-        via: via.unwrap_or_default(),
+    // behavior:
+    // - If `id` provided: update by id; else insert (even if URL duplicates).
+    // - If no `id`: update by URL; else insert with fresh UUID.
+    let updated_or_new = match id {
+        Some(uid) => {
+            let uid_str = uid.to_string();
+            if let Some(pos) = feed.links.iter().position(|l| l.id == uid_str) {
+                let item =
+                    update_link_in_place(&mut feed, pos, title, url, date, summary, tags, via);
+                eprintln!("Updated existing link (id: {})", item.id);
+                item
+            } else {
+                let item =
+                    insert_new_link_front(&mut feed, uid_str, title, url, date, summary, tags, via);
+                eprintln!("Inserted new link with explicit id: {}", item.id);
+                item
+            }
+        }
+        None => {
+            if let Some(pos) = feed.links.iter().position(|l| l.url == url) {
+                let item =
+                    update_link_in_place(&mut feed, pos, title, url, date, summary, tags, via);
+                eprintln!("Updated existing link (url: {})", item.url);
+                item
+            } else {
+                let uid = Uuid::new_v4().to_string();
+                let item =
+                    insert_new_link_front(&mut feed, uid, title, url, date, summary, tags, via);
+                eprintln!("Inserted new link with generated id: {}", item.id);
+                item
+            }
+        }
     };
-
-    let mut new_links = Vec::with_capacity(feed.links.len() + 1);
-    new_links.push(link.clone());
-    new_links.extend(feed.links.into_iter());
-    feed.links = new_links;
 
     let modified_feed = write_feed(&file, feed)?;
     eprintln!(
-        "Added link (total {}): {}",
+        "Feed now has {} link(s): {}",
         modified_feed.links.len(),
         file.display()
     );
-    Ok(link)
+
+    Ok(updated_or_new)
 }
 
 /// Read and return the feed stored in a protobuf file.
 ///
 /// ## Behavior
-/// Simply calls [`read_feed`] on the provided path and returns the parsed [`Feed`].
+/// Calls [`read_feed`] on the provided path and returns the parsed [`Feed`]. If tags and/or
+/// date filters are provided it filters the resulting [`Feed`].
 ///
 /// ## Arguments
 /// - `file`: Path to the `.pb` feed file.
@@ -467,6 +516,7 @@ mod tests {
         .expect("add B");
 
         // 2) update A (by id) with a new title
+        let id = Uuid::parse_str(&a.id).unwrap();
         let _a2 = add(
             file.clone(),
             "A updated".to_string(),
@@ -474,7 +524,7 @@ mod tests {
             None,
             None,
             None,
-            Some(a.id.clone()), // ensure it's an update
+            Some(id), // ensure it's an update
         )
         .expect("update A");
 
