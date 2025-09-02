@@ -24,25 +24,43 @@ It uses a Protocol Buffers schema to define a portable, versioned format for fee
 
 The command-line interface (`linkleaf`) lets you create a feed, add links, list/inspect entries, render a static HTML page, and publish updates to a git remote—persisting everything to a compact `.pb` file.
 
-**Please note**: while `linkleaf-rs` provides both a cli app and a public API to be used in other projects, it is being actively developed and thus the specifications can change between versions.
+> ⚠️ **Warning**: both the CLI and the public API are under active development; details may change between versions.
+
 
 ## Features
 
-- **Portable format** — uses protobuf messages (`Feed`, `Link`) for long-term stability.
-- **Minimal metadata** — title, URL, date (auto), tags, optional summary/referrer.
-- **Deterministic IDs** — default ID: `uuid` (you can override with `--id`).
+- **Portable format** — uses protobuf messages (`Feed`, `Link`).
+- **Minimal metadata** — title, URL, datetime, tags, optional summary/referrer.
+- **Stable IDs** — default ID is a **UUID v4** (you can override with `--id`, which must be a valid UUID).
 - **Local-first** — single binary `.pb` file; no server required.
-- **HTML export** — render a minimal static page (optionally with a `style.css`).
-- **Git publish** — stage, commit and push your feed to any git remote.
+- **HTML export** — render a minimal static page (and auto-copy `style.css` alongside your output).
+- **Git publish** — stage, commit, and push your feed to any git remote.
+- **Filtering** — list by tags and/or by date (day-precision).
 
 ## Usage
 
 ```bash
 linkleaf init    [FILE] [--title <TITLE>] [--version <N>]
-linkleaf add     [FILE] --title <TITLE> --url <URL> [--summary <S>] [--tags <CSV>] [--via <URL>] [--id <ID>]
-linkleaf list    [FILE] [-l|--long]
-linkleaf html    [FILE] [--out <HTML>] [--title <PAGE_TITLE>]
-linkleaf publish [FILE] [--remote <NAME>] [-b|--branch <BRANCH>] [-m|--message <MSG>] [--allow-empty] [--no-push]
+
+linkleaf add     [FILE]
+                 --title <TITLE> --url <URL>
+                 [--summary <S>] [--tags <CSV>] [--via <URL>] [--id <UUID>]
+
+linkleaf list    [FILE]
+                 [-l|--long]
+                 [--tags <CSV>]
+                 [--date <YYYY-MM-DD>]
+
+linkleaf html    [FILE]
+                 [--out <HTML>]
+                 [--title <PAGE_TITLE>]
+
+linkleaf publish [FILE]
+                 [--remote <NAME>]
+                 [-b|--branch <BRANCH>]
+                 [-m|--message <MSG>]
+                 [--allow-empty]
+                 [--no-push]
 ```
 
 ## Defaults
@@ -50,7 +68,11 @@ linkleaf publish [FILE] [--remote <NAME>] [-b|--branch <BRANCH>] [-m|--message <
 - `html --out` defaults to `assets/index.html`.
 - `add` uses today’s date automatically (`YYYY-MM-DD`, UTC).
 - `--tags` is comma-separated (e.g., `rust,book,learning`).
-- `add` **updates** an existing entry when the (derived or explicit) ID already exists.
+- `add --id` **must be a valid UUID** (v4 recommended). Without `--id`, a new UUID is generated.
+- `add` sets the link’s datetime to local time in the format `YYYY-MM-DD HH:MM:SS`.
+- Re-adding a link updates an existing entry when the **ID matches** or the **URL matches**; the updated link moves to the front.
+- `list --date` accepts `YYYY-MM-DD` and matches links on that calendar day (local time).
+- Links are kept newest-first (inserts and updates end up at index `0`)
 
 ## Examples
 ### Initialize a feed
@@ -86,7 +108,7 @@ Explicit ID (overrides the derived one):
 ```bash
 linkleaf add --title "Serde" \
   --url "https://serde.rs/" \
-  --id 123abc456def
+  --id 123e4567-e89b-12d3-a456-426614174000
 ```
 Update an existing entry (same derived/explicit ID):
 
@@ -127,14 +149,22 @@ Example output:
 Feed: 'My Links' (v1)
 
 - [2025-08-23] Tokio - Asynchronous Rust
-  id: b8f94c560b87
+  id: f47ac10b-58cc-4372-a567-0e02b2c3d479
   url: https://tokio.rs/
 
 - [2025-08-23] The Rust Book
-  id: 04eff20db88f
+  id: 3f2504e0-4f89-41d3-9a0c-0305e82c3301
   url: https://doc.rust-lang.org/book/
   via: https://rust-lang.org
   tags: rust, learning, book
+```
+Filter by tags or by date (day-precision):
+```bash
+# Any of the listed tags will match (case-insensitive)
+linkleaf list --tags rust,book
+
+# Only links from that calendar day (local time)
+linkleaf list --date 2025-08-23
 ```
 ### Render to HTML
 Render the default feed to a static page:
@@ -144,7 +174,7 @@ linkleaf html
 ```
 Render a custom feed path:
 ```bash
-linkleaf html my/links.pb --out public/index.html
+linkleaf html my/links.pb --out public/index.html --title "My Page"
 ```
 
 ### Publish to a git repo
@@ -170,21 +200,21 @@ linkleaf publish --allow-empty -m "chore: trigger build"
 
 ## Feed Schema
 
-Defined in proto/linkleaf/v1/feed.proto:
+Defined in `proto/linkleaf/v1/feed.proto`:
 
 - Link
-  - id (string) — auto-derived if omitted
-  - title (string, required)
-  - url (string, required)
-  - date (string, YYYY-MM-DD)
-  - summary (optional string)
-  - tags (optional repeated strings)
-  - via (optional string)
+  - `id` (string) — auto-derived if omitted
+  - `title` (string, required)
+  - `url` (string, required)
+  - `date` (string, YYYY-MM-DD)
+  - `summary` (optional string)
+  - `tags` (optional repeated strings)
+  - `via` (optional string)
 
 - Feed
-  - title (string)
-  - version (uint32)
-  - links (repeated Link, newest first)
+  - `title` (string)
+  - `version` (uint32)
+  - `links` (repeated Link, newest first)
 
 ## Development
 
@@ -204,12 +234,14 @@ cargo build
 - Create Atom/RSS feed from feed
 - Signatures for feeds
 
-## TODO (immediately)
-- Populate name from link (automatic)
-- Document library - done
-- Expose upsert - done
+### Next release
 - Improve error handling, specific error types
 - rewrite missing tests
+- fix cmd_html -> hardcoded path for style.css
+- Populate name from link (automatic, feature?)
+
+## TODO (immediately)
+- Document library - done
+- Expose upsert - done
 - Datetime instead of date - done
 - Filtering and searching links by tags or date. - done
-- fix cmd_html -> hardcoded path for style.css
