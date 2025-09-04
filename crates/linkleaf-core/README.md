@@ -73,3 +73,8 @@ cargo run --example filter
 - Timestamps are stored as local time strings ("YYYY-MM-DD HH:MM:SS"). Filtering compares the date component only.
 - Ordering is newest-first (index 0). Inserts and updates are re-inserted at the front.
 - Concurrency: writes are not lock-guarded; concurrent writers can race. Add a lock if multiple processes may write at once.
+
+## TODO
+- add function -> accepts tags as Vec<String> instead of Option<String>
+- add tag next release
+- use git-cliff
