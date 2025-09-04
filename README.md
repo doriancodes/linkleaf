@@ -89,7 +89,7 @@ linkleaf init my/links.pb --title "Reading List" --version 1
 Basic add (date is auto):
 
 ```bash
-linkleaf --title "Tokio - Asynchronous Rust" \
+linkleaf add --title "Tokio - Asynchronous Rust" \
   --url "https://tokio.rs/"
 ```
 
@@ -245,3 +245,6 @@ cargo build
 - Expose upsert - done
 - Datetime instead of date - done
 - Filtering and searching links by tags or date. - done
+- Inconsistencies in the api documentation
+- change name to linkleaf
+- check for publish

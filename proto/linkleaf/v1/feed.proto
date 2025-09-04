@@ -3,10 +3,10 @@ package linkleaf.v1;
 
 // A single link entry.
 message Link {
-string id = 1; // If empty on add: sha256(url + "|" + date)[:12]
+string id = 1; // If empty on add: uuid v4
 string title = 2; // Required by CLI
 string url = 3; // Required by CLI
-string date = 4; // YYYY-MM-DD (stored as plain string)
+string date = 4; // YYYY-MM-DD HH:MM:SS (stored as plain string)
 string summary = 5; // optional
 repeated string tags = 6; // optional, comma-separated input
 string via = 7; // optional URL indicating source/referrer
