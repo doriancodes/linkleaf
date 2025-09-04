@@ -9,7 +9,6 @@ use crate::linkleaf_proto::{Feed, Link};
 use crate::validation::parse_tags;
 use anyhow::Result;
 use std::path::Path;
-use std::path::PathBuf;
 use time::{Date, OffsetDateTime, PrimitiveDateTime, macros::format_description};
 use uuid::Uuid;
 
@@ -77,8 +76,7 @@ fn insert_new_link_front(
 ///   summary, tags, via) and its `date` is set to **today (local datetime, `YYYY-MM-DD HH:MM:SS`)**.
 ///   The updated link is moved to the **front** of the list (newest-first).
 /// - Otherwise a new link is **inserted at the front**. Its `id` is
-///   `Uuid::new_v4()` unless `id` is provided. If the provided `id` is not a valid uuid,
-///   the function returns an error.
+///   `Uuid::new_v4()` unless `id` is provided.
 ///
 /// Persists the whole feed by calling `write_feed`, which writes atomically
 /// via a temporary file + rename.
@@ -186,12 +184,14 @@ pub fn add<P: AsRef<Path>>(
             if let Some(pos) = feed.links.iter().position(|l| l.id == uid_str) {
                 let item =
                     update_link_in_place(&mut feed, pos, title, url, date, summary, tags, via);
-                eprintln!("Updated existing link (id: {})", item.id);
+                #[cfg(feature = "logs")]
+                tracing::info!(id = %item.id, "updated existing link by id");
                 item
             } else {
                 let item =
                     insert_new_link_front(&mut feed, uid_str, title, url, date, summary, tags, via);
-                eprintln!("Inserted new link with explicit id: {}", item.id);
+                #[cfg(feature = "logs")]
+                tracing::info!(id = %item.id, "inserted new link with explicit id");
                 item
             }
         }
@@ -199,24 +199,23 @@ pub fn add<P: AsRef<Path>>(
             if let Some(pos) = feed.links.iter().position(|l| l.url == url) {
                 let item =
                     update_link_in_place(&mut feed, pos, title, url, date, summary, tags, via);
-                eprintln!("Updated existing link (url: {})", item.url);
+                #[cfg(feature = "logs")]
+                tracing::info!(id = %item.id, "inserted new link with explicit id");
                 item
             } else {
                 let uid = Uuid::new_v4().to_string();
                 let item =
                     insert_new_link_front(&mut feed, uid, title, url, date, summary, tags, via);
-                eprintln!("Inserted new link with generated id: {}", item.id);
+                #[cfg(feature = "logs")]
+                tracing::info!(id = %item.id, "inserted new link with explicit id");
                 item
             }
         }
     };
 
-    let modified_feed = write_feed(&file, feed)?;
-    eprintln!(
-        "Feed now has {} link(s): {}",
-        modified_feed.links.len(),
-        file.display()
-    );
+    let _modified_feed = write_feed(&file, feed)?;
+    #[cfg(feature = "logs")]
+    tracing::debug!(links = _modified_feed.links.len(), path = %file.display(), "feed written");
 
     Ok(updated_or_new)
 }
@@ -247,7 +246,12 @@ pub fn add<P: AsRef<Path>>(
 /// println!("Title: {}, links: {}", feed.title, feed.links.len());
 /// Ok::<(), anyhow::Error>(())
 /// ```
-pub fn list(file: &PathBuf, tags: Option<Vec<String>>, date: Option<Date>) -> Result<Feed> {
+pub fn list<P: AsRef<Path>>(
+    file: P,
+    tags: Option<Vec<String>>,
+    date: Option<Date>,
+) -> Result<Feed> {
+    let file = file.as_ref();
     let mut feed = read_feed(file)?;
 
     let tag_norms: Option<Vec<String>> = tags.map(|ts| {
@@ -267,12 +271,9 @@ pub fn list(file: &PathBuf, tags: Option<Vec<String>>, date: Option<Date>) -> Re
         };
 
         let date_ok = match date {
-            Some(p) => {
-                let format = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
-                let parsed_date =
-                    PrimitiveDateTime::parse(&l.date, &format).expect("Failed to parse date.");
-                parsed_date.date() == p
-            }
+            Some(p) => PrimitiveDateTime::parse(&l.date, TS_FMT)
+                .map(|dt| dt.date() == p)
+                .unwrap_or(false),
             None => true,
         };
 

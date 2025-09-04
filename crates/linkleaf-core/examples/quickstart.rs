@@ -5,6 +5,14 @@ use linkleaf_core::{add, list};
 use time::{OffsetDateTime, UtcOffset};
 
 fn main() -> Result<()> {
+    #[cfg(feature = "logs")]
+    {
+        use tracing_subscriber::{EnvFilter, fmt};
+        let _ = fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .try_init(); // ignore "already set" in tests
+    }
+
     let dir = tempdir()?;
     let file = dir.path().join("feed.pb");
 

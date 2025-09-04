@@ -7,6 +7,10 @@ edition = "2024"
 name = "linkleaf"
 path = "src/main.rs"
 
+[features]
+# Enable logging in the CLI and forward-enable logging in linkleaf-core.
+logs = ["dep:tracing-subscriber", "linkleaf-core/logs"]
+
 [dependencies]
 linkleaf-core = { path = "../linkleaf-core" }
 clap = { version = "4.5", features = ["derive"] }
@@ -15,6 +19,9 @@ anyhow.workspace = true
 time.workspace = true
 serde.workspace = true
 uuid.workspace = true
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+], optional = true }
 
 [dev-dependencies]
 tempfile = "3"

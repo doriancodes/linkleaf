@@ -5,8 +5,14 @@ edition = "2024"
 description = "Local-first protobuf-only link feed manager (linkleaf.v1) with a tiny CLI."
 license = "BSD-3-Clause"
 
+[features]
+# Opt-in logging for this library.
+# Downstream can enable with: `features = ["logs"]`
+logs = ["dep:tracing"]
+
 [dependencies]
 prost = "0.13"
+tracing = { version = "0.1", optional = true }
 anyhow.workspace = true
 time.workspace = true
 serde.workspace = true
@@ -14,6 +20,8 @@ uuid.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
 
 [build-dependencies]
 prost-build = "0.13"

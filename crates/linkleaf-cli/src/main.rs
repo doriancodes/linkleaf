@@ -141,6 +141,14 @@ struct HtmlArgs {
 }
 
 fn main() -> Result<()> {
+    // Enable with env vars: RUST_LOG=info (works because we use EnvFilter)
+    #[cfg(feature = "logs")]
+    {
+        use tracing_subscriber::{EnvFilter, fmt};
+        let _ = fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .try_init(); // ignore "already set" in tests
+    }
     let cli = Cli::parse();
     match cli.command {
         Commands::Init(args) => cmd_init(args.file, args.title, args.version),
