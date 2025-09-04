@@ -1,0 +1,21 @@
+syntax = "proto3";
+package linkleaf.v1;
+
+// A single link entry.
+message Link {
+string id = 1; // If empty on add: uuid v4
+string title = 2; // Required by CLI
+string url = 3; // Required by CLI
+string date = 4; // YYYY-MM-DD HH:MM:SS (stored as plain string)
+string summary = 5; // optional
+repeated string tags = 6; // optional, comma-separated input
+string via = 7; // optional URL indicating source/referrer
+}
+
+
+// The top-level feed file that is persisted in a single .pb file.
+message Feed {
+string title = 1; // e.g. "My Links"
+uint32 version = 2; // e.g. 1
+repeated Link links = 3; // Newest first (prepend on add)
+}

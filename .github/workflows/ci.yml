@@ -61,7 +61,7 @@ jobs:
         run: sudo apt-get install protobuf-compiler
 
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --verbose --workspace
 
       - name: Test
-        run: cargo test --verbose
+        run: cargo test --verbose --workspace

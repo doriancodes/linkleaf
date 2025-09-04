@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{{ feed.title }}</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>{{ feed.title }}</h1>
+  <p>{{ feed.count }} link{% if feed.count != 1 %}s{% endif %}</p>
+  <ul>
+  {% for l in feed.links %}
+    <li>
+      <a href="{{ l.url }}">{{ l.title }}</a>
+      <small>{{ l.date }}</small>
+
+      {% if l.has_tags %}
+        <small>[{{ l.tags_joined }}]</small>
+      {% endif %}
+
+      {% if l.summary != "" %}
+        <div>{{ l.summary }}</div>
+      {% endif %}
+
+      {% if l.via != "" %}
+        <div>via <a href="{{ l.via }}">{{ l.via }}</a></div>
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</body>
+</html>

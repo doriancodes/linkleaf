@@ -1,31 +1,13 @@
-[package]
-name = "linkleaf-rs"
-version = "0.1.0"
+[workspace]
+members = ["crates/linkleaf-core", "crates/linkleaf-cli"]
+resolver = "2"
+
+[workspace.package]
 edition = "2024"
-description = "Local-first protobuf-only link feed manager (linkleaf.v1) with a tiny CLI."
-license = "BSD-3-Clause"
-repository = "https://github.com/doriancodes/linkleaf-rs"
-homepage = "https://github.com/doriancodes/linkleaf-rs"
-documentation = "https://docs.rs/linkleaf-rs"
+repository = "https://github.com/doriancodes/linkleaf"
 readme = "README.md"
-keywords = ["links", "cli", "protobuf", "local-first"]
-categories = ["command-line-utilities"]
 
-include = [
-    "Cargo.toml",
-    "build.rs",
-    "src/**",
-    "proto/**",
-    "templates/**",
-    "README.md",
-    "LICENSE*",
-    "logo.svg",
-    "logo-monochrome.svg",
-]
-
-[dependencies]
-prost = "0.13"
-clap = { version = "4.5", features = ["derive"] }
+[workspace.dependencies]
 anyhow = "1.0"
 time = { version = "0.3", features = [
     "formatting",
@@ -33,33 +15,5 @@ time = { version = "0.3", features = [
     "macros",
     "local-offset",
 ] }
-askama = "0.12"
 serde = { version = "1.0.219", features = ["derive"] }
 uuid = { version = "1.18.0", features = ["serde", "v4"] }
-
-[dev-dependencies]
-tempfile = "3"
-
-[build-dependencies]
-prost-build = "0.13"
-protoc-bin-vendored = "3"
-
-[lib]
-name = "linkleaf"
-path = "src/lib.rs"
-
-[[bin]]
-name = "linkleaf"
-path = "src/main.rs"
-
-[profile.release]
-lto = "thin"
-codegen-units = 1
-opt-level = 3
-strip = "symbols"
-panic = "abort"
-
-# Ensure docs.rs builds pick defaults that compile
-[package.metadata.docs.rs]
-all-features = false
-no-default-features = false

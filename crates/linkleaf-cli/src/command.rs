@@ -1,11 +1,81 @@
 use anyhow::{Context, Result, bail};
-use linkleaf::api::{add, html, list, write_feed};
-use linkleaf::linkleaf_proto::Feed;
+use askama::Template;
+use linkleaf_core::fs::write_feed;
+use linkleaf_core::linkleaf_proto::Feed;
+use linkleaf_core::{add, list};
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{fs, io::Write};
 use time::Date;
 use uuid::Uuid;
+
+#[derive(serde::Serialize)]
+pub struct LinkView {
+    pub title: String,
+    pub url: String,
+    pub date: String,
+    pub summary: String,
+    pub via: String,
+    pub has_tags: bool,
+    pub tags_joined: String,
+}
+
+#[derive(Serialize)]
+pub struct FeedView {
+    pub title: String,
+    pub count: usize,
+    pub links: Vec<LinkView>,
+}
+
+#[derive(Template)]
+#[template(path = "feed.html", escape = "html")]
+pub struct FeedPage<'a> {
+    pub feed: &'a FeedView,
+}
+
+pub fn html(feed: Feed, custom_title: Option<String>) -> Result<String> {
+    // map proto → template view; keep it minimal
+    let title = custom_title.unwrap_or_else(|| {
+        let t = feed.title.trim();
+        if t.is_empty() {
+            "My Links".into()
+        } else {
+            t.into()
+        }
+    });
+    let links: Vec<LinkView> = feed
+        .links
+        .iter()
+        .map(|l| {
+            let has_tags = !l.tags.is_empty();
+            let tags_joined = if has_tags {
+                l.tags.join(", ")
+            } else {
+                String::new()
+            };
+            LinkView {
+                title: l.title.clone(),
+                url: l.url.clone(),
+                date: l.date.clone(),
+                summary: l.summary.clone(),
+                via: l.via.clone(),
+                has_tags,
+                tags_joined,
+            }
+        })
+        .collect();
+
+    let view = FeedView {
+        title,
+        count: links.len(),
+        links,
+    };
+    let page = FeedPage { feed: &view };
+    let html = page.render().context("failed to render HTML")?;
+
+    Ok(html)
+}
 
 pub fn cmd_init(file: PathBuf, title: String, version: u32) -> Result<()> {
     if file.exists() {
@@ -267,8 +337,8 @@ fn git_check(args: &[&str], what: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use linkleaf::api::read_feed;
-    use linkleaf::linkleaf_proto::{Feed, Link};
+    use linkleaf_core::fs::read_feed;
+    use linkleaf_core::linkleaf_proto::{Feed, Link};
     use tempfile::TempDir;
     use uuid::Uuid;
 
