@@ -12,8 +12,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/doriancodes/linkleaf-rs/actions/workflows/ci.yml">
-    <img alt="CI" src="https://github.com/doriancodes/linkleaf-rs/actions/workflows/ci.yml/badge.svg">
+  <a href="https://github.com/doriancodes/linkleaf/actions/workflows/ci.yml">
+    <img alt="CI" src="https://github.com/doriancodes/linkleaf/actions/workflows/ci.yml/badge.svg">
   </a>
 </p>
 

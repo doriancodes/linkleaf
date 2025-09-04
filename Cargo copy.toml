@@ -1,12 +1,12 @@
 [package]
-name = "linkleaf-rs"
+name = "linkleaf"
 version = "0.1.0"
 edition = "2024"
 description = "Local-first protobuf-only link feed manager (linkleaf.v1) with a tiny CLI."
 license = "BSD-3-Clause"
-repository = "https://github.com/doriancodes/linkleaf-rs"
-homepage = "https://github.com/doriancodes/linkleaf-rs"
-documentation = "https://docs.rs/linkleaf-rs"
+repository = "https://github.com/doriancodes/linkleaf"
+homepage = "https://github.com/doriancodes/linkleaf"
+documentation = "https://docs.rs/linkleaf"
 readme = "README.md"
 keywords = ["links", "cli", "protobuf", "local-first"]
 categories = ["command-line-utilities"]

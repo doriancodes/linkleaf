@@ -5,21 +5,21 @@
   </picture>
 </p>
 
-<h1 align="center">Linkleaf-rs</h1>
+<h1 align="center">Linkleaf</h1>
 
 <p align="center">
   Manage <strong>protobuf-only</strong> Linkleaf feeds (<code>linkleaf.v1</code>) within your terminal.
 </p>
 
 <p align="center">
-  <a href="https://github.com/doriancodes/linkleaf-rs/actions/workflows/ci.yml">
-    <img alt="CI" src="https://github.com/doriancodes/linkleaf-rs/actions/workflows/ci.yml/badge.svg">
+  <a href="https://github.com/doriancodes/linkleaf/actions/workflows/ci.yml">
+    <img alt="CI" src="https://github.com/doriancodes/linkleaf/actions/workflows/ci.yml/badge.svg">
   </a>
 </p>
 
 ---
 
-`linkleaf-rs` is a simple, protobuf-backed feed manager for storing and organizing links.
+`linkleaf` is a simple, protobuf-backed feed manager for storing and organizing links.
 It uses a Protocol Buffers schema to define a portable, versioned format for feeds and individual link entries.
 
 The command-line interface (`linkleaf`) lets you create a feed, add links, list/inspect entries, render a static HTML page, and publish updates to a git remote—persisting everything to a compact `.pb` file.
