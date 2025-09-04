@@ -1,7 +1,8 @@
 use crate::linkleaf_proto::Feed;
 use anyhow::{Context, Result};
 use prost::Message;
-use std::{fs, io::Write, path::PathBuf};
+use std::path::Path;
+use std::{fs, io::Write};
 
 /// Read a protobuf feed from disk.
 ///
@@ -35,8 +36,9 @@ use std::{fs, io::Write, path::PathBuf};
 ///     Ok::<(), anyhow::Error>(())
 /// }
 /// ```
-pub fn read_feed(path: &PathBuf) -> Result<Feed> {
-    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+pub fn read_feed<P: AsRef<Path>>(path: P) -> Result<Feed> {
+    let path = path.as_ref();
+    let bytes = fs::read(&path).with_context(|| format!("failed to read {}", path.display()))?;
     Feed::decode(&*bytes).with_context(|| format!("failed to decode protobuf: {}", path.display()))
 }
 
@@ -92,7 +94,8 @@ pub fn read_feed(path: &PathBuf) -> Result<Feed> {
 ///   **same filesystem**.
 /// - If multiple processes may write concurrently, consider adding a file lock
 ///   around the write section.
-pub fn write_feed(path: &PathBuf, feed: Feed) -> Result<Feed> {
+pub fn write_feed<P: AsRef<Path>>(path: P, feed: Feed) -> Result<Feed> {
+    let path = path.as_ref();
     // Ensure parent directory exists (if any)
     if let Some(dir) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
         fs::create_dir_all(dir)
@@ -109,7 +112,7 @@ pub fn write_feed(path: &PathBuf, feed: Feed) -> Result<Feed> {
         f.write_all(&buf)?;
         f.flush()?;
     }
-    fs::rename(&tmp, path)
+    fs::rename(&tmp, &path)
         .with_context(|| format!("failed to move temp file into place: {}", path.display()))?;
     Ok(feed)
 }

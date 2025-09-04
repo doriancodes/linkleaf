@@ -2,6 +2,8 @@
 name = "linkleaf-core"
 version = "0.1.0"
 edition = "2024"
+description = "Local-first protobuf-only link feed manager (linkleaf.v1) with a tiny CLI."
+license = "BSD-3-Clause"
 
 [dependencies]
 prost = "0.13"

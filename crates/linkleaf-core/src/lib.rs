@@ -8,9 +8,13 @@ use crate::fs::{read_feed, write_feed};
 use crate::linkleaf_proto::{Feed, Link};
 use crate::validation::parse_tags;
 use anyhow::Result;
+use std::path::Path;
 use std::path::PathBuf;
-use time::{Date, OffsetDateTime, PrimitiveDateTime, UtcOffset, macros::format_description};
+use time::{Date, OffsetDateTime, PrimitiveDateTime, macros::format_description};
 use uuid::Uuid;
+
+const TS_FMT: &[time::format_description::FormatItem<'_>] =
+    format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
 fn is_not_found(err: &anyhow::Error) -> bool {
     err.downcast_ref::<std::io::Error>()
@@ -52,20 +56,15 @@ fn insert_new_link_front(
     via: Option<String>,
 ) -> Link {
     let link = Link {
+        summary: summary.unwrap_or_default(),
+        tags, // field init shorthand
+        via: via.unwrap_or_default(),
         id,
         title,
         url,
         date,
-        summary: summary.unwrap_or_default(),
-        tags: tags,
-        via: via.unwrap_or_default(),
     };
-
-    let mut new_links = Vec::with_capacity(feed.links.len() + 1);
-    new_links.push(link.clone());
-    new_links.extend(feed.links.drain(..));
-    feed.links = new_links;
-
+    feed.links.insert(0, link.clone());
     link
 }
 
@@ -145,8 +144,8 @@ fn insert_new_link_front(
 /// ## Notes
 /// - Using a provided `id` gives you a stable identity and it is tied to the url.
 /// - `date` is always set to today (local time) on both create and update.
-pub fn add(
-    file: PathBuf,
+pub fn add<P: AsRef<Path>>(
+    file: P,
     title: String,
     url: String,
     summary: Option<String>,
@@ -154,15 +153,16 @@ pub fn add(
     via: Option<String>,
     id: Option<Uuid>,
 ) -> Result<Link> {
+    let file = file.as_ref();
     // compute local timestamp once
-    let now = OffsetDateTime::now_utc();
-    let offset = UtcOffset::current_local_offset().unwrap();
-    let local_now = now.to_offset(offset);
-    let fmt = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
-    let date = local_now.format(&fmt).unwrap();
+    let local_now = OffsetDateTime::now_local()
+        .map_err(|e| anyhow::anyhow!("failed to get local time offset: {e}"))?;
+    let date = local_now
+        .format(TS_FMT)
+        .map_err(|e| anyhow::anyhow!("failed to format timestamp: {e}"))?;
 
     // read or init feed
-    let mut feed = match read_feed(&file) {
+    let mut feed = match read_feed(file) {
         Ok(f) => f,
         Err(err) if is_not_found(&err) => {
             let mut f = Feed::default();
@@ -172,11 +172,10 @@ pub fn add(
         Err(err) => return Err(err),
     };
 
-    let _tags = match tags.as_deref() {
-        Some(s) => parse_tags(s),
-        None => Ok(Vec::new()),
-    }
-    .unwrap_or_default();
+    let tags = match tags.as_deref() {
+        Some(s) => parse_tags(s).map_err(|e| anyhow::anyhow!("invalid tags: {e}"))?,
+        None => Vec::new(),
+    };
 
     // behavior:
     // - If `id` provided: update by id; else insert (even if URL duplicates).
@@ -186,13 +185,12 @@ pub fn add(
             let uid_str = uid.to_string();
             if let Some(pos) = feed.links.iter().position(|l| l.id == uid_str) {
                 let item =
-                    update_link_in_place(&mut feed, pos, title, url, date, summary, _tags, via);
+                    update_link_in_place(&mut feed, pos, title, url, date, summary, tags, via);
                 eprintln!("Updated existing link (id: {})", item.id);
                 item
             } else {
-                let item = insert_new_link_front(
-                    &mut feed, uid_str, title, url, date, summary, _tags, via,
-                );
+                let item =
+                    insert_new_link_front(&mut feed, uid_str, title, url, date, summary, tags, via);
                 eprintln!("Inserted new link with explicit id: {}", item.id);
                 item
             }
@@ -200,13 +198,13 @@ pub fn add(
         None => {
             if let Some(pos) = feed.links.iter().position(|l| l.url == url) {
                 let item =
-                    update_link_in_place(&mut feed, pos, title, url, date, summary, _tags, via);
+                    update_link_in_place(&mut feed, pos, title, url, date, summary, tags, via);
                 eprintln!("Updated existing link (url: {})", item.url);
                 item
             } else {
                 let uid = Uuid::new_v4().to_string();
                 let item =
-                    insert_new_link_front(&mut feed, uid, title, url, date, summary, _tags, via);
+                    insert_new_link_front(&mut feed, uid, title, url, date, summary, tags, via);
                 eprintln!("Inserted new link with generated id: {}", item.id);
                 item
             }
@@ -271,7 +269,8 @@ pub fn list(file: &PathBuf, tags: Option<Vec<String>>, date: Option<Date>) -> Re
         let date_ok = match date {
             Some(p) => {
                 let format = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
-                let parsed_date = PrimitiveDateTime::parse(&l.date, &format).unwrap();
+                let parsed_date =
+                    PrimitiveDateTime::parse(&l.date, &format).expect("Failed to parse date.");
                 parsed_date.date() == p
             }
             None => true,
