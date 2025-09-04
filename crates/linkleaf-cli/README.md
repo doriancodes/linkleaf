@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="/../logo-monochrome.svg">
-    <img alt="Linkleaf" src="/../logo.svg" width="420">
+    <source media="(prefers-color-scheme: dark)" srcset="logo-monochrome.svg">
+    <img alt="Linkleaf" src="logo.svg" width="420">
   </picture>
 </p>
 
