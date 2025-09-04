@@ -23,7 +23,7 @@ This repository contains the `linkleaf-cli` and `linkleaf-core` code.
 
 > ⚠️ **Warning**: both the CLI and the public lib crate are under active development; details may change between versions.
 
-## Feed Schema
+## Feed and Link Schemas
 
 Defined in [`feed.proto`](crates/linkleaf-core/proto/linkleaf/v1/feed.proto):
 
