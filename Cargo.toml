@@ -17,3 +17,10 @@ time = { version = "0.3", features = [
 ] }
 serde = { version = "1.0.219", features = ["derive"] }
 uuid = { version = "1.18.0", features = ["serde", "v4"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+opt-level = 3
+strip = "symbols"
+panic = "abort"
