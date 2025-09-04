@@ -1,12 +1,70 @@
-use anyhow::Result;
-use time::{Date, macros::format_description};
+//! Validation utilities for user-provided arguments (CLI-friendly).
+//!
+//! The parsers here return `Result<_, String>` so they plug directly into
+//! `clap`'s `value_parser` attribute. The error strings are short, user-facing
+//! messages suitable for terminal output.
 
+use anyhow::Result;
+use time::{Date, format_description::FormatItem, macros::format_description};
+
+// A shared, zero-allocation format description for strict `YYYY-MM-DD`.
+const DATE_FMT: &[FormatItem<'_>] = format_description!("[year]-[month]-[day]");
+
+/// Strictly parse a calendar date in `YYYY-MM-DD` format.
+///
+/// ## Behavior
+/// - Trims surrounding whitespace.
+/// - Requires **zero-padded** year-month-day (e.g., `2025-09-02`).
+/// - Rejects datetime strings (e.g., `2025-09-02 12:34:56`) and other formats.
+/// - Validates real calendar dates (e.g., leap years).
+///
+/// ## Arguments
+/// - `s`: The input string (typically from CLI).
+///
+/// ## Returns
+/// - `Ok(Date)` on success.
+/// - `Err(String)` with a short, user-friendly message otherwise (good for CLI).
+///
+/// ## Examples
+/// ```
+/// use linkleaf_core::validation::parse_date;
+/// let d = parse_date("2025-01-03").unwrap();
+/// assert_eq!(d.to_string(), "2025-01-03");
+/// ```
+///
+/// ```
+/// use linkleaf_core::validation::parse_date;
+/// assert!(parse_date("2025/01/03").is_err());
+/// assert!(parse_date("2025-1-3").is_err()); // not zero-padded
+/// ```
 pub fn parse_date(s: &str) -> Result<Date, String> {
     // Accept strictly "YYYY-MM-DD"
-    let fmt = format_description!("[year]-[month]-[day]");
-    Date::parse(s.trim(), &fmt).map_err(|e| e.to_string())
+    Date::parse(s.trim(), DATE_FMT).map_err(|e| e.to_string())
 }
 
+/// Parse a comma-separated tag list into a vector of tags.
+///
+/// ## Behavior
+/// - Splits on commas (`,`).
+/// - Trims whitespace around each tag.
+/// - Drops empty entries (e.g., consecutive commas or trailing commas).
+/// - **Preserves** original case and **preserves order**; no de-duplication.
+///   (Use a normalization step elsewhere if you need lowercase/unique tags.)
+///
+/// ## Arguments
+/// - `raw`: A string like `"rust, async , tokio"`.
+///
+/// ## Returns
+/// - `Ok(Vec<String>)` with the parsed tags (possibly empty).
+/// - `Err(String)` is not used currently; the function is effectively infallible,
+///   but the `Result` type makes it convenient to use with `clap`.
+///
+/// ## Examples
+/// ```
+/// use linkleaf_core::validation::parse_tags;
+/// assert_eq!(parse_tags(" a, b ,  ,c ").unwrap(), vec!["a","b","c"]);
+/// assert!(parse_tags(" , , ").unwrap().is_empty());
+/// ```
 pub fn parse_tags(raw: &str) -> Result<Vec<String>, String> {
     let tags = raw
         .split(',')

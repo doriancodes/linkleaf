@@ -38,8 +38,9 @@ use std::{fs, io::Write};
 /// ```
 pub fn read_feed<P: AsRef<Path>>(path: P) -> Result<Feed> {
     let path = path.as_ref();
-    let bytes = fs::read(&path).with_context(|| format!("failed to read {}", path.display()))?;
-    Feed::decode(&*bytes).with_context(|| format!("failed to decode protobuf: {}", path.display()))
+    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+    Feed::decode(bytes.as_slice())
+        .with_context(|| format!("failed to decode protobuf: {}", path.display()))
 }
 
 /// Write a protobuf feed to disk **atomically** (best-effort).
@@ -103,14 +104,16 @@ pub fn write_feed<P: AsRef<Path>>(path: P, feed: Feed) -> Result<Feed> {
     }
 
     let mut buf = Vec::with_capacity(1024);
-    feed.encode(&mut buf)?;
+    feed.encode(&mut buf)
+        .context("failed to encode protobuf Feed")?;
 
     let tmp = path.with_extension("pb.tmp");
     {
         let mut f =
             fs::File::create(&tmp).with_context(|| format!("failed to write {}", tmp.display()))?;
         f.write_all(&buf)?;
-        f.flush()?;
+        // Ensure bytes are on disk, not just in the OS page cache
+        f.sync_all()?;
     }
     fs::rename(&tmp, &path)
         .with_context(|| format!("failed to move temp file into place: {}", path.display()))?;
