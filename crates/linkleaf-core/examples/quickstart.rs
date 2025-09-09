@@ -18,7 +18,7 @@ fn main() -> Result<()> {
 
     let _a = add(
         file.clone(),
-        "Tokio - Asynchronous Rust".into(),
+        "Tokio - Asynchronous Rust",
         "https://tokio.rs/".into(),
         Some("A runtime for reliable async apps".into()),
         Some("rust, async, tokio".into()),

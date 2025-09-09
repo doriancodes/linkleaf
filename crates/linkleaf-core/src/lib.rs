@@ -6,7 +6,6 @@ pub mod linkleaf_proto {
 
 use crate::fs::{read_feed, write_feed};
 use crate::linkleaf_proto::{Feed, Link};
-use crate::validation::parse_tags;
 use anyhow::Result;
 use std::path::Path;
 use time::{Date, OffsetDateTime, PrimitiveDateTime, macros::format_description};
@@ -67,6 +66,37 @@ fn insert_new_link_front(
     link
 }
 
+// fn upsert<'a>(
+//     feed: &mut Feed,
+//     id: Option<Uuid>,
+//     title: String,
+//     url: String,
+//     date: String,
+//     summary: Option<String>,
+//     tags: Vec<String>,
+//     via: Option<String>,
+// ) -> Cow<'a, Link> {
+//     match id {
+//         Some(_id) => {
+//             let uid_str = uid.to_string();
+//             if let Some(pos) = feed.links.iter().position(|l| l.id == uid_str) {
+//                 // take ownership, mutate, then reinsert at front
+//                 let mut item = feed.links.remove(pos);
+//                 item.title = title;
+//                 item.url = url;
+//                 item.date = date;
+//                 item.summary = summary.unwrap_or_default();
+//                 item.tags = tags;
+//                 item.via = via.unwrap_or_default();
+
+//                 feed.links.insert(0, item.clone());
+//                 item
+//             }
+//         }
+//         None => {}
+//     }
+// }
+
 /// Add or update a link in a protobuf feed file, then persist the feed.
 ///
 /// ## Behavior
@@ -114,7 +144,7 @@ fn insert_new_link_front(
 /// // Create a new link
 /// let a = add(
 ///     file.clone(),
-///     "Tokio - Asynchronous Rust".into(),
+///     "Tokio - Asynchronous Rust",
 ///     "https://tokio.rs/".into(),
 ///     None,
 ///     Some("rust, async, tokio".into()),
@@ -126,7 +156,7 @@ fn insert_new_link_front(
 /// let _id = Uuid::parse_str(&a.id)?;
 /// let a2 = add(
 ///     file.clone(),
-///     "Tokio • Async Rust".into(),
+///     "Tokio • Async Rust",
 ///     "https://tokio.rs/".into(),
 ///     Some("A runtime for reliable async apps".into()),
 ///     None,
@@ -142,15 +172,20 @@ fn insert_new_link_front(
 /// ## Notes
 /// - Using a provided `id` gives you a stable identity and it is tied to the url.
 /// - `date` is always set to today (local time) on both create and update.
-pub fn add<P: AsRef<Path>>(
+pub fn add<P, S, T>(
     file: P,
-    title: String,
-    url: String,
-    summary: Option<String>,
-    tags: Option<String>,
-    via: Option<String>,
+    title: S,
+    url: S,
+    summary: Option<S>,
+    tags: T,
+    via: Option<S>,
     id: Option<Uuid>,
-) -> Result<Link> {
+) -> Result<Link>
+where
+    P: AsRef<Path>,
+    S: Into<String>,
+    T: IntoIterator<Item = S>,
+{
     let file = file.as_ref();
     // compute local timestamp once
     let local_now = OffsetDateTime::now_local()
@@ -170,10 +205,7 @@ pub fn add<P: AsRef<Path>>(
         Err(err) => return Err(err),
     };
 
-    let tags = match tags.as_deref() {
-        Some(s) => parse_tags(s).map_err(|e| anyhow::anyhow!("invalid tags: {e}"))?,
-        None => Vec::new(),
-    };
+    let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
 
     // behavior:
     // - If `id` provided: update by id; else insert (even if URL duplicates).
@@ -182,30 +214,63 @@ pub fn add<P: AsRef<Path>>(
         Some(uid) => {
             let uid_str = uid.to_string();
             if let Some(pos) = feed.links.iter().position(|l| l.id == uid_str) {
-                let item =
-                    update_link_in_place(&mut feed, pos, title, url, date, summary, tags, via);
+                let item = update_link_in_place(
+                    &mut feed,
+                    pos,
+                    title.into(),
+                    url.into(),
+                    date,
+                    summary.map(Into::into),
+                    tags,
+                    via.map(Into::into),
+                );
                 #[cfg(feature = "logs")]
                 tracing::info!(id = %item.id, "updated existing link by id");
                 item
             } else {
-                let item =
-                    insert_new_link_front(&mut feed, uid_str, title, url, date, summary, tags, via);
+                let item = insert_new_link_front(
+                    &mut feed,
+                    uid_str,
+                    title.into(),
+                    url.into(),
+                    date,
+                    summary.map(Into::into),
+                    tags,
+                    via.map(Into::into),
+                );
                 #[cfg(feature = "logs")]
                 tracing::info!(id = %item.id, "inserted new link with explicit id");
                 item
             }
         }
         None => {
+            let url = url.into();
             if let Some(pos) = feed.links.iter().position(|l| l.url == url) {
-                let item =
-                    update_link_in_place(&mut feed, pos, title, url, date, summary, tags, via);
+                let item = update_link_in_place(
+                    &mut feed,
+                    pos,
+                    title.into(),
+                    url.into(),
+                    date,
+                    summary.map(|s| s.into()),
+                    tags,
+                    via.map(|s| s.into()),
+                );
                 #[cfg(feature = "logs")]
                 tracing::info!(id = %item.id, "inserted new link with explicit id");
                 item
             } else {
                 let uid = Uuid::new_v4().to_string();
-                let item =
-                    insert_new_link_front(&mut feed, uid, title, url, date, summary, tags, via);
+                let item = insert_new_link_front(
+                    &mut feed,
+                    uid,
+                    title.into(),
+                    url.into(),
+                    date,
+                    summary.map(Into::into),
+                    tags,
+                    via.map(Into::into),
+                );
                 #[cfg(feature = "logs")]
                 tracing::info!(id = %item.id, "inserted new link with explicit id");
                 item
@@ -332,12 +397,12 @@ mod tests {
         // via=None & tags string -> defaults + parse_tags used internally
         let created = add(
             file.clone(),
-            "Tokio".into(),
+            "Tokio",
             "https://tokio.rs/".into(),
-            None,                               // summary -> ""
-            Some("rust, async , tokio".into()), // gets trimmed/split
-            None,                               // via -> ""
-            None,                               // id -> generated
+            None, // summary -> ""
+            vec!["rust", "async", "tokio"],
+            None,         // via -> ""
+            None::<Uuid>, // id -> generated
         )?;
 
         // File exists and can be read; version initialized to 1
@@ -365,7 +430,7 @@ mod tests {
 
         let created = add(
             file.clone(),
-            "A".into(),
+            "A",
             "https://a.example/".into(),
             Some("hi".into()),
             Some("x,y".into()),
@@ -386,20 +451,20 @@ mod tests {
     fn add_update_by_id_moves_to_front_and_updates_fields() -> Result<()> {
         let dir = tempdir()?;
         let file = dir.path().join("feed.pb");
-
+        let tags = ["alpha"];
         // Seed with two links
         let a = add(
             file.clone(),
-            "First".into(),
+            "First",
             "https://one/".into(),
             None,
-            Some("alpha".into()),
+            tags,
             None,
-            None,
+            None::<Uuid>,
         )?;
         let _b = add(
             file.clone(),
-            "Second".into(),
+            "Second",
             "https://two/".into(),
             None,
             Some("beta".into()),
@@ -410,10 +475,10 @@ mod tests {
         // Update by id of 'a': title/url/tags/via/summary overwritten, item moves to front
         let updated = add(
             file.clone(),
-            "First (updated)".into(),
+            "First (updated)",
             "https://one-new/".into(),
             Some("note".into()),
-            Some("rust,updated".into()),
+            ["rust", "updated"],
             Some("HN".into()),
             Some(Uuid::parse_str(&a.id)?),
         )?;
@@ -438,7 +503,7 @@ mod tests {
 
         let first = add(
             file.clone(),
-            "Original".into(),
+            "Original",
             "https://same.url/".into(),
             None,
             None,
@@ -449,10 +514,10 @@ mod tests {
         // Same URL, id=None => update-in-place (but moved to front) and id stays the same
         let updated = add(
             file.clone(),
-            "Original (updated)".into(),
+            "Original (updated)",
             "https://same.url/".into(),
             Some("s".into()),
-            Some("t1,t2".into()),
+            ["t1", "t2"],
             None,
             None,
         )?;
@@ -472,7 +537,7 @@ mod tests {
 
         let _a = add(
             file.clone(),
-            "A".into(),
+            "A",
             "https://a/".into(),
             None,
             None,
@@ -481,7 +546,7 @@ mod tests {
         )?;
         let b = add(
             file.clone(),
-            "B".into(),
+            "B",
             "https://b/".into(),
             None,
             None,
@@ -505,7 +570,7 @@ mod tests {
 
         let err = add(
             file.clone(),
-            "X".into(),
+            "X",
             "https://x/".into(),
             None,
             None,

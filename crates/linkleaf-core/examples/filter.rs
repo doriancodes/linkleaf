@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     // Seed some links (dates are set to "now local" internally)
     let _ = add(
         file.clone(),
-        "A".into(),
+        "A",
         "https://a/".into(),
         None,
         Some("rust, async".into()),
@@ -20,7 +20,7 @@ fn main() -> Result<()> {
     )?;
     let _ = add(
         file.clone(),
-        "B".into(),
+        "B",
         "https://b/".into(),
         None,
         Some("tokio".into()),
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     )?;
     let _ = add(
         file.clone(),
-        "C".into(),
+        "C",
         "https://c/".into(),
         None,
         Some("db, rust".into()),

@@ -10,7 +10,7 @@ fn main() -> Result<()> {
 
     let first = add(
         file.clone(),
-        "First".into(),
+        "First",
         "https://one/".into(),
         None,
         Some("alpha".into()),
@@ -21,7 +21,7 @@ fn main() -> Result<()> {
     // Update the same logical item by id
     let updated = add(
         file.clone(),
-        "First (updated)".into(),
+        "First (updated)",
         "https://one-new/".into(),
         Some("note".into()),
         Some("rust,updated".into()),

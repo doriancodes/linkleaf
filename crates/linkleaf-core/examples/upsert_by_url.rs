@@ -9,7 +9,7 @@ fn main() -> Result<()> {
 
     let a = add(
         file.clone(),
-        "Original".into(),
+        "Original",
         "https://same.url/".into(),
         None,
         Some("t1".into()),
@@ -20,7 +20,7 @@ fn main() -> Result<()> {
     // Same URL + id=None -> update the existing entry (moved to front)
     let a2 = add(
         file.clone(),
-        "Original (updated)".into(),
+        "Original (updated)",
         "https://same.url/".into(),
         Some("updated".into()),
         Some("t2".into()),
