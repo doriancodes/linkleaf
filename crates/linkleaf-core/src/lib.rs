@@ -66,61 +66,30 @@ fn insert_new_link_front(
     link
 }
 
-// fn upsert<'a>(
-//     feed: &mut Feed,
-//     id: Option<Uuid>,
-//     title: String,
-//     url: String,
-//     date: String,
-//     summary: Option<String>,
-//     tags: Vec<String>,
-//     via: Option<String>,
-// ) -> Cow<'a, Link> {
-//     match id {
-//         Some(_id) => {
-//             let uid_str = uid.to_string();
-//             if let Some(pos) = feed.links.iter().position(|l| l.id == uid_str) {
-//                 // take ownership, mutate, then reinsert at front
-//                 let mut item = feed.links.remove(pos);
-//                 item.title = title;
-//                 item.url = url;
-//                 item.date = date;
-//                 item.summary = summary.unwrap_or_default();
-//                 item.tags = tags;
-//                 item.via = via.unwrap_or_default();
-
-//                 feed.links.insert(0, item.clone());
-//                 item
-//             }
-//         }
-//         None => {}
-//     }
-// }
-
 /// Add or update a link in a protobuf feed file, then persist the feed.
 ///
 /// ## Behavior
-/// - Tries to read the feed at `file`. If the file does not exist, a new feed is
-///   initialized (`version = 1`).
-/// - If `id` or `url` matches an existing link, that link is **updated** (title, url,
-///   summary, tags, via) and its `date` is set to **today (local datetime, `YYYY-MM-DD HH:MM:SS`)**.
-///   The updated link is moved to the **front** of the list (newest-first).
-/// - Otherwise a new link is **inserted at the front**. Its `id` is
-///   `Uuid::new_v4()` unless `id` is provided.
+/// - Reads the feed at `file`. If it doesn't exist, a new feed is initialized (`version = 1`).
+/// - If an `id` is provided:
+///   - Updates the existing link with that `id` if found (title, url, summary, tags, via),
+///     sets its `date` to **today (local datetime, `YYYY-MM-DD HH:MM:SS`)**, and moves it
+///     to the **front** (newest-first).
+///   - Otherwise inserts a **new** link at the front with that explicit `id`.
+/// - If no `id` is provided:
+///   - Updates the first link whose `url` matches; sets `date` to today and moves it to the front.
+///   - Otherwise inserts a **new** link at the front with a freshly generated UUID v4 `id`.
 ///
-/// Persists the whole feed by calling `write_feed`, which writes atomically
-/// via a temporary file + rename.
+/// Persists the entire feed by calling `write_feed`, which writes atomically
+/// via a temporary file and `rename`.
 ///
 /// ## Arguments
 /// - `file`: Path to the `.pb` feed file to update/create.
 /// - `title`: Human-readable title for the link.
 /// - `url`: Target URL for the link.
-/// - `summary`: Optional blurb/notes (empty string if `None`).
-/// - `tags`: Optional tag list as a single string; parsed by `parse_tags`
-///   (e.g. `"rust, async, tokio"` → `["rust","async","tokio"]`).
-/// - `via`: Optional source/attribution (empty if `None`).
-/// - `id`: Optional stable identifier. If present, performs an **upsert** of that
-///   item. If absent, it generates a UUID v4.
+/// - `summary`: Optional blurb/notes (`None` -> empty string).
+/// - `tags`: Zero or more tags as an **iterator of strings** (e.g., `["rust", "async", "tokio"]`).
+/// - `via`: Optional source/attribution (`None` -> empty string).
+/// - `id`: Optional stable identifier. If present, performs an **upsert** by `id`.
 ///
 /// ## Returns
 /// The newly created or updated [`Link`].
@@ -129,9 +98,9 @@ fn insert_new_link_front(
 /// Links are kept **newest-first**; both inserts and updates end up at index `0`.
 ///
 /// ## Errors
-/// - Any error from `read_feed` (except “not found”) is returned.
-/// - Any error from `write_feed` is returned.
-/// - This function performs no inter-process locking; concurrent writers may race.
+/// - Propagates any error from `read_feed` (except “not found”, which initializes a new feed).
+/// - Propagates any error from `write_feed`.
+/// - No inter-process locking is performed; concurrent writers may race.
 ///
 /// ## Example
 /// ```no_run
@@ -145,11 +114,11 @@ fn insert_new_link_front(
 /// let a = add(
 ///     file.clone(),
 ///     "Tokio - Asynchronous Rust",
-///     "https://tokio.rs/".into(),
+///     "https://tokio.rs/",
 ///     None,
-///     Some("rust, async, tokio".into()),
+///     ["rust", "async", "tokio"],
 ///     None,
-///     None, // no id -> create
+///     None, // no id -> create (may update if URL already exists)
 /// )?;
 ///
 /// // Update the same link by id (upsert)
@@ -157,11 +126,11 @@ fn insert_new_link_front(
 /// let a2 = add(
 ///     file.clone(),
 ///     "Tokio • Async Rust",
-///     "https://tokio.rs/".into(),
-///     Some("A runtime for reliable async apps".into()),
+///     "https://tokio.rs/",
+///     Some("A runtime for reliable async apps"),
+///     [],                 // no tags change
 ///     None,
-///     None,
-///     Some(_id), // provide id -> update
+///     Some(_id),          // provide id -> update or insert with that id
 /// )?;
 ///
 /// assert_eq!(a2.id, a.id);
@@ -170,8 +139,9 @@ fn insert_new_link_front(
 /// ```
 ///
 /// ## Notes
-/// - Using a provided `id` gives you a stable identity and it is tied to the url.
-/// - `date` is always set to today (local time) on both create and update.
+/// - Providing an `id` gives the item a stable identity; updates by `id` will also update
+///   the stored `url` to the new value you pass.
+/// - `date` is always set to “today” in local time on both create and update.
 pub fn add<P, S, T>(
     file: P,
     title: S,
