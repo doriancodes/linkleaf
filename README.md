@@ -49,16 +49,4 @@ Defined in [`feed.proto`](crates/linkleaf-core/proto/linkleaf/v1/feed.proto):
 - Signatures for feeds
 
 ### Next release
-- Improve error handling, specific error types
-- rewrite missing tests
-- fix cmd_html -> hardcoded path for style.css
 - Populate name from link (automatic, feature?)
-
-## TODO (immediately)
-- Document library - done
-- Expose upsert - done
-- Datetime instead of date - done
-- Filtering and searching links by tags or date. - done
-- Inconsistencies in the api documentation
-- change name to linkleaf
-- check for publish
