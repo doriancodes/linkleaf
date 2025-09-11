@@ -7,7 +7,7 @@ readme = "README.md"
 license = "BSD-3-Clause"
 repository = "https://github.com/doriancodes/linkleaf"
 homepage = "https://github.com/doriancodes/linkleaf/tree/main/crates/linkleaf-cli"
-documentation = "https://github.com/doriancodes/linkleaf/tree/main/crates/linkleaf-cli"
+documentation = "https://github.com/doriancodes/linkleaf/tree/main/crates/linkleaf-cli#readme"
 keywords = ["protobuf", "links", "feed", "local-first", "cli"]
 categories = [  "command-line-utilities","filesystem","encoding"]
 
