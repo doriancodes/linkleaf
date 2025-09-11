@@ -2,7 +2,7 @@ mod command;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-use command::{cmd_add, cmd_html, cmd_init, cmd_list, cmd_publish};
+use command::{cmd_add, cmd_init, cmd_list};
 use linkleaf_core::validation::{parse_date, parse_tags};
 use std::path::PathBuf;
 use time::Date;
@@ -25,39 +25,6 @@ enum Commands {
 
     /// List links (compact by default; use -l/--long for details)
     List(ListArgs),
-
-    /// Render HTML from the feed
-    Html(HtmlArgs),
-
-    /// Commit & push the feed file to a git remote
-    Publish(PublishArgs),
-}
-
-#[derive(Args)]
-struct PublishArgs {
-    /// Path to the feed .pb file
-    #[arg(value_name = "FILE", default_value = "feed/mylinks.pb")]
-    file: PathBuf,
-
-    /// Git remote name
-    #[arg(short, long, default_value = "origin")]
-    remote: String,
-
-    /// Branch to push to; if omitted, uses the current upstream
-    #[arg(short = 'b', long)]
-    branch: Option<String>,
-
-    /// Commit message
-    #[arg(short = 'm', long, default_value = "Update link feed")]
-    message: String,
-
-    /// Allow committing even when there are no changes
-    #[arg(long)]
-    allow_empty: bool,
-
-    /// Do not push (only commit)
-    #[arg(long)]
-    no_push: bool,
 }
 
 #[derive(Args)]
@@ -125,21 +92,6 @@ struct AddArgs {
     id: Option<Uuid>,
 }
 
-#[derive(Args)]
-struct HtmlArgs {
-    /// Input feed .pb file
-    #[arg(value_name = "FILE", default_value = "feed/mylinks.pb")]
-    file: PathBuf,
-
-    /// Output HTML file (e.g., docs/index.html)
-    #[arg(short, long, default_value = "assets/index.html")]
-    out: PathBuf,
-
-    /// Page title (defaults to feed.title)
-    #[arg(short, long)]
-    title: Option<String>,
-}
-
 fn main() -> Result<()> {
     // Enable with env vars: RUST_LOG=info (works because we use EnvFilter)
     #[cfg(feature = "logs")]
@@ -162,14 +114,5 @@ fn main() -> Result<()> {
             args.id,
         ),
         Commands::List(args) => cmd_list(args.file, args.long, args.tags, args.date),
-        Commands::Html(args) => cmd_html(args.file, args.out, args.title),
-        Commands::Publish(args) => cmd_publish(
-            args.file,
-            &args.remote,
-            args.branch,
-            &args.message,
-            args.allow_empty,
-            args.no_push,
-        ),
     }
 }

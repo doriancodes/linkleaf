@@ -22,7 +22,7 @@
 `linkleaf` is a simple, protobuf-backed feed manager for storing and organizing links.
 It uses a Protocol Buffers schema to define a portable, versioned format for feeds and individual link entries.
 
-The command-line interface (`linkleaf`) lets you create a feed, add links, list/inspect entries, render a static HTML page, and publish updates to a git remote—persisting everything to a compact `.pb` file.
+The command-line interface (`linkleaf`) lets you create a feed, add links and list/inspect entries from a compact `.pb` file.
 
 > ⚠️ **Warning**: both the CLI and the public API are under active development; details may change between versions.
 
@@ -33,8 +33,6 @@ The command-line interface (`linkleaf`) lets you create a feed, add links, list/
 - **Minimal metadata** — title, URL, datetime, tags, optional summary/referrer.
 - **Stable IDs** — default ID is a **UUID v4** (you can override with `--id`, which must be a valid UUID).
 - **Local-first** — single binary `.pb` file; no server required.
-- **HTML export** — render a minimal static page (and auto-copy `style.css` alongside your output).
-- **Git publish** — stage, commit, and push your feed to any git remote.
 - **Filtering** — list by tags and/or by date (day-precision).
 
 ## Usage
@@ -50,22 +48,10 @@ linkleaf list    [FILE]
                  [-l|--long]
                  [--tags <CSV>]
                  [--date <YYYY-MM-DD>]
-
-linkleaf html    [FILE]
-                 [--out <HTML>]
-                 [--title <PAGE_TITLE>]
-
-linkleaf publish [FILE]
-                 [--remote <NAME>]
-                 [-b|--branch <BRANCH>]
-                 [-m|--message <MSG>]
-                 [--allow-empty]
-                 [--no-push]
 ```
 
 ## Defaults
 - `FILE` defaults to `feed/mylinks.pb` for all commands.
-- `html --out` defaults to `assets/index.html`.
 - `add` uses today’s date automatically (`YYYY-MM-DD`, UTC).
 - `--tags` is comma-separated (e.g., `rust,book,learning`).
 - `add --id` **must be a valid UUID** (v4 recommended). Without `--id`, a new UUID is generated.
@@ -166,37 +152,6 @@ linkleaf list --tags rust,book
 # Only links from that calendar day (local time)
 linkleaf list --date 2025-08-23
 ```
-### Render to HTML
-Render the default feed to a static page:
-
-```bash
-linkleaf html
-```
-Render a custom feed path:
-```bash
-linkleaf html my/links.pb --out public/index.html --title "My Page"
-```
-
-### Publish to a git repo
-```bash
-# Commit and push feed/mylinks.pb to the current upstream
-linkleaf publish
-
-# Commit and push to a specific branch (sets upstream)
-linkleaf publish -b main
-
-# Custom file path + custom message
-linkleaf publish my/links.pb -m "Add two new links"
-
-# Use a different remote
-linkleaf publish --remote origin
-
-# Commit only (don’t push)
-linkleaf publish --no-push
-
-# Allow an empty commit (e.g., to trigger CI):
-linkleaf publish --allow-empty -m "chore: trigger build"
-```
 
 ## Feed Schema
 
@@ -226,25 +181,3 @@ To recompile after changing the .proto schema:
 cargo clean
 cargo build
 ```
-
-## Roadmap / Ideas
-
-- Export feeds to JSON, Markdown.
-- Import from bookmark managers or RSS.
-- Create Atom/RSS feed from feed
-- Signatures for feeds
-
-### Next release
-- Improve error handling, specific error types
-- rewrite missing tests
-- fix cmd_html -> hardcoded path for style.css
-- Populate name from link (automatic, feature?)
-
-## TODO (immediately)
-- Document library - done
-- Expose upsert - done
-- Datetime instead of date - done
-- Filtering and searching links by tags or date. - done
-- Inconsistencies in the api documentation
-- change name to linkleaf
-- check for publish
