@@ -24,6 +24,12 @@ include = [
 # Opt-in logging for this library.
 # Downstream can enable with: `features = ["logs"]`
 logs = ["dep:tracing"]
+# rss = ["dep:rss"]
+
+# [[example]]
+# name = "write_rss_feed"
+# path = "examples/write_rss_feed.rs"
+# required-features = ["rss"]
 
 [dependencies]
 prost = "0.13"
@@ -32,6 +38,11 @@ anyhow.workspace = true
 time.workspace = true
 serde.workspace = true
 uuid.workspace = true
+# rss = {version ="2.0.12", optional = true}
+rss = {version ="2.0.12"}
+prost-types = {version = "0.14.1", features = ["chrono"]}
+
+
 
 [dev-dependencies]
 tempfile = "3"
@@ -40,6 +51,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 [build-dependencies]
 prost-build = "0.13"
 protoc-bin-vendored = "3"
+prost-types = {version = "0.14.1", features = ["chrono"]}
 
 [badges]
 maintenance = { status = "actively-developed" }

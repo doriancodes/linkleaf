@@ -44,12 +44,12 @@ fn main() -> Result<()> {
         println!("- {}", l.title);
     }
 
-    // Filter by today's date
-    let today = OffsetDateTime::now_utc()
-        .to_offset(UtcOffset::current_local_offset()?)
-        .date();
-    let today_only = list(&file, None, Some(today))?;
-    println!("today_only: {}", today_only.links.len());
+    // // Filter by today's date
+    // let today = OffsetDateTime::now_utc()
+    //     .to_offset(UtcOffset::current_local_offset()?)
+    //     .date();
+    // let today_only = list(&file, None, Some(today))?;
+    // println!("today_only: {}", today_only.links.len());
 
     Ok(())
 }

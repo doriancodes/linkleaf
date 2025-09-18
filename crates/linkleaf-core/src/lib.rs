@@ -4,15 +4,19 @@ pub mod linkleaf_proto {
     include!(concat!(env!("OUT_DIR"), "/linkleaf.v1.rs"));
 }
 
+//#[cfg(feature = "rss")]
+pub mod rss;
+
+//#[cfg(feature = "rss")]
+//pub use rss::feed_to_rss_xml;
+
 use crate::fs::{read_feed, write_feed};
-use crate::linkleaf_proto::{Feed, Link};
+use crate::linkleaf_proto::{DateTime, Feed, Link};
 use anyhow::Result;
 use std::path::Path;
-use time::{Date, OffsetDateTime, PrimitiveDateTime, macros::format_description};
+use time::Month;
+use time::OffsetDateTime;
 use uuid::Uuid;
-
-const TS_FMT: &[time::format_description::FormatItem<'_>] =
-    format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
 fn is_not_found(err: &anyhow::Error) -> bool {
     err.downcast_ref::<std::io::Error>()
@@ -25,7 +29,7 @@ fn update_link_in_place(
     pos: usize,
     title: String,
     url: String,
-    date: String,
+    date: Option<DateTime>,
     summary: Option<String>,
     tags: Vec<String>,
     via: Option<String>,
@@ -34,7 +38,7 @@ fn update_link_in_place(
     let mut item = feed.links.remove(pos);
     item.title = title;
     item.url = url;
-    item.date = date;
+    item.datetime = date;
     item.summary = summary.unwrap_or_default();
     item.tags = tags;
     item.via = via.unwrap_or_default();
@@ -48,7 +52,7 @@ fn insert_new_link_front(
     id: String,
     title: String,
     url: String,
-    date: String,
+    datetime: Option<DateTime>,
     summary: Option<String>,
     tags: Vec<String>,
     via: Option<String>,
@@ -60,10 +64,27 @@ fn insert_new_link_front(
         id,
         title,
         url,
-        date,
+        datetime,
     };
     feed.links.insert(0, link.clone());
     link
+}
+
+fn from_month(value: Month) -> i32 {
+    match value {
+        Month::January => 1,
+        Month::February => 2,
+        Month::March => 3,
+        Month::April => 4,
+        Month::May => 5,
+        Month::June => 6,
+        Month::July => 7,
+        Month::August => 8,
+        Month::September => 9,
+        Month::October => 10,
+        Month::November => 11,
+        Month::December => 12,
+    }
 }
 
 /// Add or update a link in a protobuf feed file, then persist the feed.
@@ -160,9 +181,16 @@ where
     // compute local timestamp once
     let local_now = OffsetDateTime::now_local()
         .map_err(|e| anyhow::anyhow!("failed to get local time offset: {e}"))?;
-    let date = local_now
-        .format(TS_FMT)
-        .map_err(|e| anyhow::anyhow!("failed to format timestamp: {e}"))?;
+
+    let datetime = DateTime {
+        year: local_now.year() as i32,
+        month: from_month(local_now.month()),
+        day: local_now.day() as i32,
+        hours: local_now.hour() as i32,
+        minutes: local_now.minute() as i32,
+        seconds: local_now.second() as i32,
+        nanos: local_now.nanosecond() as i32,
+    };
 
     // read or init feed
     let mut feed = match read_feed(file) {
@@ -175,24 +203,28 @@ where
         Err(err) => return Err(err),
     };
 
+    let title = title.into();
+    let url = url.into();
+    let summary = summary.map(Into::into);
+    let via = via.map(Into::into);
     let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
+    let id_opt: Option<String> = id.map(|u| u.to_string());
 
     // behavior:
     // - If `id` provided: update by id; else insert (even if URL duplicates).
     // - If no `id`: update by URL; else insert with fresh UUID.
-    let updated_or_new = match id {
+    let updated_or_new = match id_opt {
         Some(uid) => {
-            let uid_str = uid.to_string();
-            if let Some(pos) = feed.links.iter().position(|l| l.id == uid_str) {
+            if let Some(pos) = feed.links.iter().position(|l| l.id == uid) {
                 let item = update_link_in_place(
                     &mut feed,
                     pos,
-                    title.into(),
-                    url.into(),
-                    date,
-                    summary.map(Into::into),
+                    title,
+                    url,
+                    Some(datetime),
+                    summary,
                     tags,
-                    via.map(Into::into),
+                    via,
                 );
                 #[cfg(feature = "logs")]
                 tracing::info!(id = %item.id, "updated existing link by id");
@@ -200,13 +232,13 @@ where
             } else {
                 let item = insert_new_link_front(
                     &mut feed,
-                    uid_str,
-                    title.into(),
-                    url.into(),
-                    date,
-                    summary.map(Into::into),
+                    uid,
+                    title,
+                    url,
+                    Some(datetime),
+                    summary,
                     tags,
-                    via.map(Into::into),
+                    via,
                 );
                 #[cfg(feature = "logs")]
                 tracing::info!(id = %item.id, "inserted new link with explicit id");
@@ -214,17 +246,16 @@ where
             }
         }
         None => {
-            let url = url.into();
             if let Some(pos) = feed.links.iter().position(|l| l.url == url) {
                 let item = update_link_in_place(
                     &mut feed,
                     pos,
-                    title.into(),
-                    url.into(),
-                    date,
-                    summary.map(|s| s.into()),
+                    title,
+                    url,
+                    Some(datetime),
+                    summary,
                     tags,
-                    via.map(|s| s.into()),
+                    via,
                 );
                 #[cfg(feature = "logs")]
                 tracing::info!(id = %item.id, "inserted new link with explicit id");
@@ -234,12 +265,12 @@ where
                 let item = insert_new_link_front(
                     &mut feed,
                     uid,
-                    title.into(),
-                    url.into(),
-                    date,
-                    summary.map(Into::into),
+                    title,
+                    url,
+                    Some(datetime),
+                    summary,
                     tags,
-                    via.map(Into::into),
+                    via,
                 );
                 #[cfg(feature = "logs")]
                 tracing::info!(id = %item.id, "inserted new link with explicit id");
@@ -284,7 +315,7 @@ where
 pub fn list<P: AsRef<Path>>(
     file: P,
     tags: Option<Vec<String>>,
-    date: Option<Date>,
+    datetime: Option<DateTime>,
 ) -> Result<Feed> {
     let file = file.as_ref();
     let mut feed = read_feed(file)?;
@@ -296,6 +327,8 @@ pub fn list<P: AsRef<Path>>(
             .collect()
     });
 
+    let date_filter: Option<&DateTime> = datetime.as_ref();
+
     feed.links.retain(|l| {
         let tag_ok = match &tag_norms {
             Some(needles) => l
@@ -305,10 +338,8 @@ pub fn list<P: AsRef<Path>>(
             None => true,
         };
 
-        let date_ok = match date {
-            Some(p) => PrimitiveDateTime::parse(&l.date, TS_FMT)
-                .map(|dt| dt.date() == p)
-                .unwrap_or(false),
+        let date_ok = match date_filter {
+            Some(p) => l.datetime.as_ref().map(|dt| dt == p).unwrap_or(false),
             None => true,
         };
 
@@ -322,10 +353,9 @@ pub fn list<P: AsRef<Path>>(
 mod tests {
     use super::{add, list};
     use crate::fs::{read_feed, write_feed};
-    use crate::linkleaf_proto::{Feed, Link};
+    use crate::linkleaf_proto::{DateTime, Feed, Link};
     use anyhow::Result;
     use tempfile::tempdir;
-    use time::macros::date;
     use uuid::Uuid;
 
     // ---- helpers -------------------------------------------------------------
@@ -334,7 +364,7 @@ mod tests {
         id: &str,
         title: &str,
         url: &str,
-        date_s: &str,
+        date_s: DateTime,
         tags: &[&str],
         summary: &str,
         via: &str,
@@ -343,7 +373,7 @@ mod tests {
             id: id.to_string(),
             title: title.to_string(),
             url: url.to_string(),
-            date: date_s.to_string(),
+            datetime: Some(date_s),
             summary: summary.to_string(),
             tags: tags.iter().map(|s| s.to_string()).collect(),
             via: via.to_string(),
@@ -559,25 +589,29 @@ mod tests {
         let dir = tempdir()?;
         let file = dir.path().join("feed.pb");
 
+        let dt1 = DateTime {
+            year: 2025,
+            month: 1,
+            day: 2,
+            hours: 12,
+            minutes: 0,
+            seconds: 0,
+            nanos: 0,
+        };
+
+        let dt2 = DateTime {
+            year: 2025,
+            month: 1,
+            day: 3,
+            hours: 9,
+            minutes: 30,
+            seconds: 15,
+            nanos: 0,
+        };
+
         // Build a feed directly so we control dates/tags precisely
-        let l1 = mk_link(
-            "1",
-            "One",
-            "https://1/",
-            "2025-01-02 12:00:00",
-            &["rust", "async"],
-            "",
-            "",
-        );
-        let l2 = mk_link(
-            "2",
-            "Two",
-            "https://2/",
-            "2025-01-03 09:30:15",
-            &["tokio"],
-            "",
-            "",
-        );
+        let l1 = mk_link("1", "One", "https://1/", dt1, &["rust", "async"], "", "");
+        let l2 = mk_link("2", "Two", "https://2/", dt2, &["tokio"], "", "");
         write_feed(&file, mk_feed(vec![l2.clone(), l1.clone()]))?;
 
         let feed = list(&file, None, None)?;
@@ -593,20 +627,32 @@ mod tests {
         let dir = tempdir()?;
         let file = dir.path().join("feed.pb");
 
-        let l1 = mk_link(
-            "1",
-            "One",
-            "https://1/",
-            "2025-01-02 12:00:00",
-            &["rust", "async"],
-            "",
-            "",
-        );
+        let dt1 = DateTime {
+            year: 2025,
+            month: 1,
+            day: 2,
+            hours: 12,
+            minutes: 0,
+            seconds: 0,
+            nanos: 0,
+        };
+
+        let dt2 = DateTime {
+            year: 2025,
+            month: 1,
+            day: 3,
+            hours: 9,
+            minutes: 30,
+            seconds: 15,
+            nanos: 0,
+        };
+
+        let l1 = mk_link("1", "One", "https://1/", dt1, &["rust", "async"], "", "");
         let l2 = mk_link(
             "2",
             "Two",
             "https://2/",
-            "2025-01-03 09:30:15",
+            dt2,
             &["Tokio"], // mixed case
             "",
             "",
@@ -635,31 +681,35 @@ mod tests {
         let dir = tempdir()?;
         let file = dir.path().join("feed.pb");
 
-        let l1 = mk_link(
-            "1",
-            "Jan02",
-            "https://1/",
-            "2025-01-02 00:00:00",
-            &[],
-            "",
-            "",
-        );
-        let l2 = mk_link(
-            "2",
-            "Jan03",
-            "https://2/",
-            "2025-01-03 23:59:59",
-            &[],
-            "",
-            "",
-        );
+        let dt1 = DateTime {
+            year: 2025,
+            month: 1,
+            day: 3,
+            hours: 12,
+            minutes: 0,
+            seconds: 0,
+            nanos: 0,
+        };
+
+        let dt2 = DateTime {
+            year: 2025,
+            month: 1,
+            day: 3,
+            hours: 23,
+            minutes: 59,
+            seconds: 59,
+            nanos: 0,
+        };
+
+        let l1 = mk_link("1", "Jan02", "https://1/", dt1, &[], "", "");
+        let l2 = mk_link("2", "Jan03", "https://2/", dt2, &[], "", "");
         write_feed(&file, mk_feed(vec![l1.clone(), l2.clone()]))?;
 
-        let filtered = list(&file, None, Some(date!(2025 - 01 - 03)))?;
+        let filtered = list(&file, None, Some(dt2))?;
         assert_eq!(filtered.links.len(), 1);
         assert_eq!(filtered.links[0].id, l2.id);
 
-        let filtered2 = list(&file, None, Some(date!(2025 - 01 - 02)))?;
+        let filtered2 = list(&file, None, Some(dt1))?;
         assert_eq!(filtered2.links.len(), 1);
         assert_eq!(filtered2.links[0].id, l1.id);
 
