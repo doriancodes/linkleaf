@@ -2,7 +2,7 @@ use anyhow::Result;
 use tempfile::tempdir;
 use uuid::Uuid;
 
-use linkleaf_core::{add, list};
+use linkleaf_core::{add, linkleaf_proto::Summary, linkleaf_proto::Via, list};
 
 fn main() -> Result<()> {
     let dir = tempdir()?;
@@ -23,9 +23,9 @@ fn main() -> Result<()> {
         file.clone(),
         "First (updated)",
         "https://one-new/".into(),
-        Some("note".into()),
+        Some(Summary::new("note")),
         Some("rust,updated".into()),
-        Some("hn".into()),
+        Some(Via::new("hn")),
         Some(Uuid::parse_str(&first.id)?),
     )?;
 

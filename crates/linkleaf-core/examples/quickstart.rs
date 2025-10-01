@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tempfile::tempdir;
 
-use linkleaf_core::{add, list};
+use linkleaf_core::{add, linkleaf_proto::Summary, linkleaf_proto::Via, list};
 use time::{OffsetDateTime, UtcOffset};
 
 fn main() -> Result<()> {
@@ -20,9 +20,9 @@ fn main() -> Result<()> {
         file.clone(),
         "Tokio - Asynchronous Rust",
         "https://tokio.rs/".into(),
-        Some("A runtime for reliable async apps".into()),
+        Some(Summary::new("A runtime for reliable async apps")),
         Some("rust, async, tokio".into()),
-        Some("website".into()),
+        Some(Via::new("website")),
         None, // generate id
     )?;
 

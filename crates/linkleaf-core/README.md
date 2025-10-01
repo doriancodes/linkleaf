@@ -66,6 +66,9 @@ cargo run --example upsert_by_url
 # tag & date filtering
 cargo run --example filter
 
+# generate rss feed from linkleaf feed
+cargo run --example gen_rss_feed
+
 ```
 
 ## Design notes
