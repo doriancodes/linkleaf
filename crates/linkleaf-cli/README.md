@@ -33,8 +33,6 @@ The command-line interface (`linkleaf`) lets you create a feed, add links and li
 - **Minimal metadata** — title, URL, datetime, tags, optional summary/referrer.
 - **Stable IDs** — default ID is a **UUID v4** (you can override with `--id`, which must be a valid UUID).
 - **Local-first** — single binary `.pb` file; no server required.
-- **HTML export** — render a minimal static page (and auto-copy `style.css` alongside your output).
-- **Git publish** — stage, commit, and push your feed to any git remote.
 - **Filtering** — list by tags and/or by date (day-precision).
 
 ## Usage
@@ -55,7 +53,6 @@ linkleaf list    [FILE]
 
 ## Defaults
 - `FILE` defaults to `feed/mylinks.pb` for all commands.
-- `html --out` defaults to `assets/index.html`.
 - `add` uses today’s date automatically (`YYYY-MM-DD`, UTC).
 - `--tags` is comma-separated (e.g., `rust,book,learning`).
 - `add --id` **must be a valid UUID** (v4 recommended). Without `--id`, a new UUID is generated.
