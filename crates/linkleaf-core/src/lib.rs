@@ -350,6 +350,7 @@ impl DateTime {
     /// Converts this `DateTime` to an RFC 2822 string.
     ///
     /// Returns `None` if any field is invalid (e.g., month > 12, day > 31).
+    #[allow(deprecated)]
     pub fn to_rfc2822(&self) -> Option<String> {
         // Convert i32 fields to u32 safely
         let month = u32::try_from(self.month).ok()?; // 1..=12
