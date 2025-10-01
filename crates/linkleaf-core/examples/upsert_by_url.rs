@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tempfile::tempdir;
 
-use linkleaf_core::{add, list};
+use linkleaf_core::{add, linkleaf_proto::Summary, list};
 
 fn main() -> Result<()> {
     let dir = tempdir()?;
@@ -22,7 +22,7 @@ fn main() -> Result<()> {
         file.clone(),
         "Original (updated)",
         "https://same.url/".into(),
-        Some("updated".into()),
+        Some(Summary::new("updated")),
         Some("t2".into()),
         None,
         None,

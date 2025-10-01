@@ -69,15 +69,25 @@ message DateTime {
 
 }
 
+// Summary of the Link
+message Summary {
+    string content = 1;
+}
+
+// It contains the url where the link was originally shared
+message Via {
+    string url = 1;
+}
+
 // A single link entry.
 message Link {
     string id = 1; // If empty on add: uuid v4
     string title = 2; // Required by CLI
     string url = 3; // Required by CLI
     DateTime datetime = 4; // Required YYYY-MM-DD HH:MM:SS (stored as plain string)
-    string summary = 5; // optional
+    Summary summary = 5; // optional
     repeated string tags = 6; // optional, comma-separated input
-    string via = 7; // optional URL indicating source/referrer
+    Via via = 7; // optional URL indicating source/referrer
 }
 
 

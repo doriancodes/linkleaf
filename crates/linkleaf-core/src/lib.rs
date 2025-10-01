@@ -5,7 +5,7 @@ pub mod linkleaf_proto {
 }
 
 use crate::fs::{read_feed, write_feed};
-use crate::linkleaf_proto::{DateTime, Feed, Link};
+use crate::linkleaf_proto::{DateTime, Feed, Link, Summary, Via};
 use anyhow::Result;
 use chrono::{FixedOffset, TimeZone};
 use rss::{CategoryBuilder, ChannelBuilder, GuidBuilder, Item, ItemBuilder};
@@ -26,18 +26,18 @@ fn update_link_in_place(
     title: String,
     url: String,
     date: Option<DateTime>,
-    summary: Option<String>,
+    summary: Option<Summary>,
     tags: Vec<String>,
-    via: Option<String>,
+    via: Option<Via>,
 ) -> Link {
     // take ownership, mutate, then reinsert at front
     let mut item = feed.links.remove(pos);
     item.title = title;
     item.url = url;
     item.datetime = date;
-    item.summary = summary.unwrap_or_default();
+    item.summary = summary;
     item.tags = tags;
-    item.via = via.unwrap_or_default();
+    item.via = via;
 
     feed.links.insert(0, item.clone());
     item
@@ -49,14 +49,14 @@ fn insert_new_link_front(
     title: String,
     url: String,
     datetime: Option<DateTime>,
-    summary: Option<String>,
+    summary: Option<Summary>,
     tags: Vec<String>,
-    via: Option<String>,
+    via: Option<Via>,
 ) -> Link {
     let link = Link {
-        summary: summary.unwrap_or_default(),
+        summary: summary,
         tags, // field init shorthand
-        via: via.unwrap_or_default(),
+        via: via,
         id,
         title,
         url,
@@ -123,6 +123,7 @@ fn from_month(value: Month) -> i32 {
 /// ```no_run
 /// use std::path::PathBuf;
 /// use linkleaf_core::*;
+/// use linkleaf_core::linkleaf_proto::Summary;
 /// use uuid::Uuid;
 ///
 /// let file = PathBuf::from("mylinks.pb");
@@ -144,7 +145,7 @@ fn from_month(value: Month) -> i32 {
 ///     file.clone(),
 ///     "Tokio • Async Rust",
 ///     "https://tokio.rs/",
-///     Some("A runtime for reliable async apps"),
+///     Some(Summary::new("A runtime for reliable async apps")),
 ///     [],                 // no tags change
 ///     None,
 ///     Some(_id),          // provide id -> update or insert with that id
@@ -163,9 +164,9 @@ pub fn add<P, S, T>(
     file: P,
     title: S,
     url: S,
-    summary: Option<S>,
+    summary: Option<Summary>,
     tags: T,
-    via: Option<S>,
+    via: Option<Via>,
     id: Option<Uuid>,
 ) -> Result<Link>
 where
@@ -400,7 +401,7 @@ fn link_to_rss_item(l: &Link) -> Item {
     ItemBuilder::default()
         .title(Some(l.title.clone()))
         .link(Some(l.url.clone()))
-        .description((!l.summary.is_empty()).then(|| l.summary.clone()))
+        .description(l.summary.as_ref().map(|c| c.content.clone()))
         .categories(cats)
         .guid(Some(
             GuidBuilder::default()
@@ -412,11 +413,25 @@ fn link_to_rss_item(l: &Link) -> Item {
         .build()
 }
 
+impl Summary {
+    pub fn new(content: &str) -> Self {
+        Summary {
+            content: content.into(),
+        }
+    }
+}
+
+impl Via {
+    pub fn new(url: &str) -> Self {
+        Via { url: url.into() }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{add, feed_to_rss_xml, link_to_rss_item, list};
     use crate::fs::{read_feed, write_feed};
-    use crate::linkleaf_proto::{DateTime, Feed, Link};
+    use crate::linkleaf_proto::{DateTime, Feed, Link, Summary, Via};
     use anyhow::Result;
     use tempfile::tempdir;
     use uuid::Uuid;
@@ -432,14 +447,18 @@ mod tests {
         summary: &str,
         via: &str,
     ) -> Link {
+        let _summary = Some(Summary::new(summary));
+
+        let _via = Some(Via::new(via));
+
         Link {
             id: id.to_string(),
             title: title.to_string(),
             url: url.to_string(),
             datetime: Some(date_s),
-            summary: summary.to_string(),
+            summary: _summary,
             tags: tags.iter().map(|s| s.to_string()).collect(),
-            via: via.to_string(),
+            via: _via,
         }
     }
 
@@ -455,9 +474,9 @@ mod tests {
             id: "1234".to_string(),
             title: "Example Post".to_string(),
             url: "https://example.com/post".to_string(),
-            summary: "This is a summary".to_string(),
+            summary: Some(Summary::new("This is a summary")),
             tags: vec!["rust".to_string(), "rss".to_string()],
-            via: "".to_string(),
+            via: None,
             datetime: Some(DateTime {
                 year: 2025,
                 month: 10,
@@ -504,8 +523,8 @@ mod tests {
         assert_eq!(l.id, created.id);
         assert_eq!(l.title, "Tokio");
         assert_eq!(l.url, "https://tokio.rs/");
-        assert_eq!(l.summary, "");
-        assert_eq!(l.via, "");
+        assert_eq!(l.summary, None);
+        assert_eq!(l.via, None);
         assert_eq!(l.tags, vec!["rust", "async", "tokio"]);
 
         // ID is a valid UUID
@@ -523,9 +542,9 @@ mod tests {
             file.clone(),
             "A",
             "https://a.example/".into(),
-            Some("hi".into()),
+            Some(Summary::new("hi")),
             Some("x,y".into()),
-            Some("via".into()),
+            Some(Via::new("via")),
             Some(wanted),
         )?;
 
@@ -568,16 +587,16 @@ mod tests {
             file.clone(),
             "First (updated)",
             "https://one-new/".into(),
-            Some("note".into()),
+            Some(Summary::new("note")),
             ["rust", "updated"],
-            Some("HN".into()),
+            Some(Via::new("HN")),
             Some(Uuid::parse_str(&a.id)?),
         )?;
         assert_eq!(updated.id, a.id);
         assert_eq!(updated.title, "First (updated)");
         assert_eq!(updated.url, "https://one-new/");
-        assert_eq!(updated.summary, "note");
-        assert_eq!(updated.via, "HN");
+        assert_eq!(updated.summary, Some(Summary::new("note")));
+        assert_eq!(updated.via, Some(Via::new("HN")));
         assert_eq!(updated.tags, vec!["rust", "updated"]);
 
         let feed = list(&file, None, None)?;
@@ -607,7 +626,7 @@ mod tests {
             file.clone(),
             "Original (updated)",
             "https://same.url/".into(),
-            Some("s".into()),
+            Some(Summary::new("s")),
             ["t1", "t2"],
             None,
             None,
@@ -814,7 +833,7 @@ mod tests {
 
         assert_eq!(item.title.unwrap(), link.title);
         assert_eq!(item.link.unwrap(), link.url);
-        assert_eq!(item.description.unwrap(), link.summary);
+        assert_eq!(item.description.unwrap(), link.summary.unwrap().content);
         assert_eq!(item.categories.len(), link.tags.len());
         assert!(item.guid.is_some());
         assert!(item.pub_date.is_some());
@@ -857,8 +876,8 @@ mod tests {
             id: "5678".to_string(),
             title: "No Summary Post".to_string(),
             url: "https://example.com/nosummary".to_string(),
-            via: "".to_string(),
-            summary: "".to_string(),
+            via: None,
+            summary: None,
             tags: vec![],
             datetime: None,
         };

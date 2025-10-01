@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tempfile::tempdir;
 
-use linkleaf_core::{add, feed_to_rss_xml, list};
+use linkleaf_core::{add, feed_to_rss_xml, linkleaf_proto::Summary, linkleaf_proto::Via, list};
 
 fn main() -> Result<()> {
     let dir = tempdir()?;
@@ -11,9 +11,9 @@ fn main() -> Result<()> {
         file.clone(),
         "Tokio - Asynchronous Rust",
         "https://tokio.rs/".into(),
-        Some("A runtime for reliable async apps".into()),
+        Some(Summary::new("A runtime for reliable async apps")),
         Some("rust, async, tokio".into()),
-        Some("website".into()),
+        Some(Via::new("website")),
         None, // generate id
     )?;
 
