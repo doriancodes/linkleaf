@@ -1,10 +1,8 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use linkleaf_core::fs::write_feed;
 use linkleaf_core::linkleaf_proto::Feed;
 use linkleaf_core::{add, list};
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::{fs, io::Write};
+use std::path::PathBuf;
 use time::Date;
 use uuid::Uuid;
 
