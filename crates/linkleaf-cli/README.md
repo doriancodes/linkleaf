@@ -48,6 +48,7 @@ linkleaf list    [FILE]
                  [-l|--long]
                  [--tags <CSV>]
                  [--date <YYYY-MM-DD>]
+
 ```
 
 ## Defaults
