@@ -66,34 +66,56 @@ message DateTime {
   // Required. Fractions of seconds in nanoseconds. Must be from 0 to
   // 999,999,999.
   int32 nanos = 7;
-
 }
 
-// Summary of the Link
+// Summary of the Link. Optional.
+// Can contain a brief description, excerpt, or notes about the link.
+// Typically used to provide context for the reader.
 message Summary {
-    string content = 1;
+  string content = 1;
 }
 
-// It contains the url where the link was originally shared
+// Indicates where the link was originally shared or referenced.
+// Optional. Can store a URL pointing to the source, referrer, or context
+// from which the link was obtained.
 message Via {
-    string url = 1;
+  string url = 1;
 }
 
 // A single link entry.
 message Link {
-    string id = 1; // If empty on add: uuid v4
-    string title = 2; // Required by CLI
-    string url = 3; // Required by CLI
-    DateTime datetime = 4; // Required YYYY-MM-DD HH:MM:SS (stored as plain string)
-    Summary summary = 5; // optional
-    repeated string tags = 6; // optional, comma-separated input
-    Via via = 7; // optional URL indicating source/referrer
-}
+  // Unique identifier for the link. If empty when adding, a UUID v4 will be
+  // generated.
+  string id = 1;
 
+  // Title of the link. Required by CLI and most UIs.
+  string title = 2;
+
+  // The canonical URL of the link. Required.
+  string url = 3;
+
+  // Date and time associated with the link. Stored as a DateTime message.
+  // Required in "YYYY-MM-DD HH:MM:SS" format (or use zeroed fields if unknown).
+  DateTime datetime = 4;
+
+  // Optional summary or notes for the link. Can be empty.
+  Summary summary = 5;
+
+  // Optional tags associated with the link. Can be empty or repeated.
+  repeated string tags = 6;
+
+  // Optional source or referrer URL for the link.
+  Via via = 7;
+}
 
 // The top-level feed file that is persisted in a single .pb file.
 message Feed {
-    string title = 1; // e.g. "My Links"
-    uint32 version = 2; // e.g. 1
-    repeated Link links = 3; // Newest first (prepend on add)
+  // Title of the feed. e.g., "My Links".
+  string title = 1;
+
+  // Version of the feed format. Default is 1.
+  uint32 version = 2;
+
+  // Links contained in this feed. Newest entries are first (prepend on add).
+  repeated Link links = 3;
 }
