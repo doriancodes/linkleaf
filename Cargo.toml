@@ -1,13 +1,36 @@
-[workspace]
-members = ["crates/linkleaf-core", "crates/linkleaf-cli"]
-resolver = "2"
-
-[workspace.package]
+[package]
+name = "linkleaf-cli"
+version = "0.1.0"
 edition = "2024"
-repository = "https://github.com/doriancodes/linkleaf"
+description = "Local-first protobuf-only link feed manager (linkleaf.v1) for the terminal"
 readme = "README.md"
+license = "BSD-3-Clause"
+repository = "https://github.com/doriancodes/linkleaf"
+homepage = "https://github.com/doriancodes/linkleaf/tree/main/crates/linkleaf-cli"
+documentation = "https://github.com/doriancodes/linkleaf/tree/main/crates/linkleaf-cli#readme"
+keywords = ["protobuf", "links", "feed", "local-first", "cli"]
+categories = [  "command-line-utilities","filesystem","encoding"]
 
-[workspace.dependencies]
+include = [
+    "src/**",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE",
+    "logo.svg",
+    "logo-monochrome.svg"
+]
+
+[[bin]]
+name = "linkleaf"
+path = "src/main.rs"
+
+[features]
+# Enable logging in the CLI and forward-enable logging in linkleaf-core.
+logs = ["dep:tracing-subscriber", "linkleaf-core/logs"]
+
+[dependencies]
+linkleaf-core = "=0.1.1"
+clap = { version = "4.5", features = ["derive"] }
 anyhow = "1.0"
 time = { version = "0.3", features = [
     "formatting",
@@ -17,6 +40,15 @@ time = { version = "0.3", features = [
 ] }
 serde = { version = "1.0.219", features = ["derive"] }
 uuid = { version = "1.18.0", features = ["serde", "v4"] }
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+], optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[badges]
+maintenance = { status = "actively-developed" }
 
 [profile.release]
 lto = "thin"
