@@ -369,6 +369,51 @@ fn to_datetime(proto_datetime: &Option<DateTime>) -> Option<String> {
     proto_datetime.as_ref().map(|dt| dt.to_rfc2822())
 }
 
+/// Converts a `Feed` into an RSS 2.0 XML string.
+///
+/// This function generates a fully formatted RSS feed from the provided `Feed`
+/// data structure. Each `Link` in the feed is converted to an `Item` in the
+/// RSS feed using `link_to_rss_item`.
+///
+/// # Parameters
+///
+/// - `feed`: A reference to a `Feed` struct containing the feed title and links.
+/// - `site_title`: A fallback title for the feed if `feed.title` is empty.
+/// - `site_link`: The canonical URL of the website or feed source; used as the
+///   `<link>` of the channel.
+///
+/// # Returns
+///
+/// Returns a `Result<String>` containing the RSS XML string if successful.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The channel cannot be serialized into XML.
+/// - The resulting UTF-8 string cannot be created from the XML buffer.
+///
+/// # Behavior
+///
+/// - If `feed.title` is empty, `site_title` is used as the RSS channel title.
+/// - Each link's tags, summary, guid, and publication date are included in
+///   the corresponding RSS `<item>`.
+/// - The XML is pretty-printed with an indentation of 2 spaces.
+///
+/// # Example
+///
+/// ```rust
+/// use linkleaf_core::linkleaf_proto::Feed;
+/// use linkleaf_core::feed_to_rss_xml;
+///
+/// let feed = Feed {
+///     title: "My Links".to_string(),
+///     links: vec![/* ... */],
+///     version: 1
+/// };
+/// let rss_xml = feed_to_rss_xml(&feed, "Default Site", "https://example.com")
+///     .expect("Failed to generate RSS XML");
+/// println!("{}", rss_xml);
+/// ```
 pub fn feed_to_rss_xml(feed: &Feed, site_title: &str, site_link: &str) -> Result<String> {
     let items: Vec<Item> = feed.links.iter().map(|l| link_to_rss_item(l)).collect();
     let description = format!("Feed about {} generated through Linkleaf", &feed.title);
@@ -390,8 +435,6 @@ pub fn feed_to_rss_xml(feed: &Feed, site_title: &str, site_link: &str) -> Result
 }
 
 fn link_to_rss_item(l: &Link) -> Item {
-    // let pub_date = parse_local(&l.datetime).and_then(|dt| dt.format(&Rfc2822).ok());
-
     let cats = l
         .tags
         .iter()
@@ -414,6 +457,24 @@ fn link_to_rss_item(l: &Link) -> Item {
 }
 
 impl Summary {
+    /// Creates a new `Summary` instance with the given content.
+    ///
+    /// # Parameters
+    ///
+    /// - `content`: A string slice containing the summary text. Can be empty.
+    ///
+    /// # Returns
+    ///
+    /// A `Summary` instance containing the provided content.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use linkleaf_core::linkleaf_proto::Summary;
+    ///
+    /// let summary = Summary::new("This is a brief description of the link.");
+    /// assert_eq!(summary.content, "This is a brief description of the link.");
+    /// ```
     pub fn new(content: &str) -> Self {
         Summary {
             content: content.into(),
@@ -422,6 +483,24 @@ impl Summary {
 }
 
 impl Via {
+    /// Creates a new `Via` instance with the given URL.
+    ///
+    /// # Parameters
+    ///
+    /// - `url`: A string slice containing the URL where the link was originally shared.
+    ///
+    /// # Returns
+    ///
+    /// A `Via` instance containing the provided URL.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use linkleaf_core::linkleaf_proto::Via;
+    ///
+    /// let via = Via::new("https://example.com/source");
+    /// assert_eq!(via.url, "https://example.com/source");
+    /// ```
     pub fn new(url: &str) -> Self {
         Via { url: url.into() }
     }
