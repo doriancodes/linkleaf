@@ -1,8 +1,7 @@
 use anyhow::Result;
 use tempfile::tempdir;
 
-use linkleaf_core::{add, list, rss};
-use time::{OffsetDateTime, UtcOffset};
+use linkleaf_core::{add, feed_to_rss_xml, list};
 
 fn main() -> Result<()> {
     let dir = tempdir()?;
@@ -20,9 +19,9 @@ fn main() -> Result<()> {
 
     let feed = list(&file, None, None)?;
 
-    //  let rss_feed = rss::feed_to_rss_xml(&feed, "", "");
+    let rss_feed = feed_to_rss_xml(&feed, "", "")?;
 
-    //   println!(rss_feed);
+    println!("{}", rss_feed);
 
     Ok(())
 }

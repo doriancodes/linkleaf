@@ -4,15 +4,11 @@ pub mod linkleaf_proto {
     include!(concat!(env!("OUT_DIR"), "/linkleaf.v1.rs"));
 }
 
-//#[cfg(feature = "rss")]
-pub mod rss;
-
-//#[cfg(feature = "rss")]
-//pub use rss::feed_to_rss_xml;
-
 use crate::fs::{read_feed, write_feed};
 use crate::linkleaf_proto::{DateTime, Feed, Link};
 use anyhow::Result;
+use chrono::{FixedOffset, TimeZone};
+use rss::{CategoryBuilder, ChannelBuilder, GuidBuilder, Item, ItemBuilder};
 use std::path::Path;
 use time::Month;
 use time::OffsetDateTime;
@@ -349,9 +345,76 @@ pub fn list<P: AsRef<Path>>(
     Ok(feed)
 }
 
+//TODO refactor
+impl DateTime {
+    pub fn to_rfc2822(&self) -> String {
+        // Create a chrono::DateTime in UTC or fixed offset
+        let dt = FixedOffset::east(0) // UTC; -> TODO give local offset
+            .ymd(
+                self.year,
+                self.month.try_into().unwrap(),
+                self.day.try_into().unwrap(),
+            )
+            .and_hms(
+                self.hours.try_into().unwrap(),
+                self.minutes.try_into().unwrap(),
+                self.seconds.try_into().unwrap(),
+            );
+        dt.to_rfc2822()
+    }
+}
+
+fn to_datetime(proto_datetime: &Option<DateTime>) -> Option<String> {
+    proto_datetime.as_ref().map(|dt| dt.to_rfc2822())
+}
+
+pub fn feed_to_rss_xml(feed: &Feed, site_title: &str, site_link: &str) -> Result<String> {
+    let items: Vec<Item> = feed.links.iter().map(|l| link_to_rss_item(l)).collect();
+    let description = format!("Feed about {} generated through Linkleaf", &feed.title);
+
+    let channel = ChannelBuilder::default()
+        .title(if feed.title.is_empty() {
+            site_title.to_string()
+        } else {
+            feed.title.clone()
+        })
+        .link(site_link.to_string())
+        .description(description) // if you have it; else set a default
+        .items(items)
+        .build();
+
+    let mut buf = Vec::new();
+    channel.pretty_write_to(&mut buf, b' ', 2)?;
+    Ok(String::from_utf8(buf)?)
+}
+
+fn link_to_rss_item(l: &Link) -> Item {
+    // let pub_date = parse_local(&l.datetime).and_then(|dt| dt.format(&Rfc2822).ok());
+
+    let cats = l
+        .tags
+        .iter()
+        .map(|t| CategoryBuilder::default().name(t.clone()).build())
+        .collect::<Vec<_>>();
+
+    ItemBuilder::default()
+        .title(Some(l.title.clone()))
+        .link(Some(l.url.clone()))
+        .description((!l.summary.is_empty()).then(|| l.summary.clone()))
+        .categories(cats)
+        .guid(Some(
+            GuidBuilder::default()
+                .value(format!("urn:uuid:{}", l.id))
+                .permalink(false)
+                .build(),
+        ))
+        .pub_date(to_datetime(&l.datetime))
+        .build()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{add, list};
+    use super::{add, feed_to_rss_xml, link_to_rss_item, list};
     use crate::fs::{read_feed, write_feed};
     use crate::linkleaf_proto::{DateTime, Feed, Link};
     use anyhow::Result;
@@ -385,6 +448,34 @@ mod tests {
         f.version = 1;
         f.links = links;
         f
+    }
+
+    fn sample_link() -> Link {
+        Link {
+            id: "1234".to_string(),
+            title: "Example Post".to_string(),
+            url: "https://example.com/post".to_string(),
+            summary: "This is a summary".to_string(),
+            tags: vec!["rust".to_string(), "rss".to_string()],
+            via: "".to_string(),
+            datetime: Some(DateTime {
+                year: 2025,
+                month: 10,
+                day: 1,
+                hours: 14,
+                minutes: 30,
+                seconds: 45,
+                nanos: 00,
+            }),
+        }
+    }
+
+    fn sample_feed() -> Feed {
+        Feed {
+            title: "Test Feed".to_string(),
+            links: vec![sample_link()],
+            version: 1,
+        }
     }
 
     // ---- tests ---------------------------------------------------------------
@@ -714,5 +805,71 @@ mod tests {
         assert_eq!(filtered2.links[0].id, l1.id);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_link_to_rss_item() {
+        let link = sample_link();
+        let item = link_to_rss_item(&link);
+
+        assert_eq!(item.title.unwrap(), link.title);
+        assert_eq!(item.link.unwrap(), link.url);
+        assert_eq!(item.description.unwrap(), link.summary);
+        assert_eq!(item.categories.len(), link.tags.len());
+        assert!(item.guid.is_some());
+        assert!(item.pub_date.is_some());
+    }
+
+    #[test]
+    fn test_feed_to_rss_xml_basic() {
+        let feed = sample_feed();
+        let site_title = "Default Site";
+        let site_link = "https://example.com";
+
+        let rss_xml =
+            feed_to_rss_xml(&feed, site_title, site_link).expect("Failed to generate RSS XML");
+
+        // Basic checks that XML contains expected values
+        assert!(rss_xml.contains("<title>Test Feed</title>"));
+        assert!(rss_xml.contains("<link>https://example.com</link>"));
+        assert!(rss_xml.contains("Example Post"));
+        assert!(rss_xml.contains("This is a summary"));
+        assert!(rss_xml.contains("rust"));
+        assert!(rss_xml.contains("rss"));
+        assert!(rss_xml.contains("urn:uuid:1234"));
+    }
+
+    #[test]
+    fn test_feed_to_rss_xml_empty_feed_title() {
+        let mut feed = sample_feed();
+        feed.title = "".to_string();
+
+        let rss_xml = feed_to_rss_xml(&feed, "Default Site", "https://example.com")
+            .expect("Failed to generate RSS XML");
+
+        // Should fallback to site title
+        assert!(rss_xml.contains("<title>Default Site</title>"));
+    }
+
+    #[test]
+    fn test_link_without_summary_or_tags() {
+        let link = Link {
+            id: "5678".to_string(),
+            title: "No Summary Post".to_string(),
+            url: "https://example.com/nosummary".to_string(),
+            via: "".to_string(),
+            summary: "".to_string(),
+            tags: vec![],
+            datetime: None,
+        };
+
+        let item = link_to_rss_item(&link);
+
+        // description should be None
+        assert!(item.description.is_none());
+        // categories should be empty
+        assert!(item.categories.is_empty());
+        // pub_date should be None
+        assert!(item.pub_date.is_none());
     }
 }

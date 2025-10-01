@@ -26,10 +26,9 @@ include = [
 logs = ["dep:tracing"]
 # rss = ["dep:rss"]
 
-# [[example]]
-# name = "write_rss_feed"
-# path = "examples/write_rss_feed.rs"
-# required-features = ["rss"]
+[[example]]
+name = "gen_rss_feed"
+path = "examples/gen_rss_feed.rs"
 
 [dependencies]
 prost = "0.13"
@@ -39,8 +38,9 @@ time.workspace = true
 serde.workspace = true
 uuid.workspace = true
 # rss = {version ="2.0.12", optional = true}
-rss = {version ="2.0.12"}
+rss = {version ="2.0.12", features=["builders", "serde"]}
 prost-types = {version = "0.14.1", features = ["chrono"]}
+chrono = "0.4.42"
 
 
 
