@@ -346,27 +346,30 @@ pub fn list<P: AsRef<Path>>(
     Ok(feed)
 }
 
-//TODO refactor
 impl DateTime {
-    pub fn to_rfc2822(&self) -> String {
-        // Create a chrono::DateTime in UTC or fixed offset
-        let dt = FixedOffset::east(0) // UTC; -> TODO give local offset
-            .ymd(
-                self.year,
-                self.month.try_into().unwrap(),
-                self.day.try_into().unwrap(),
-            )
-            .and_hms(
-                self.hours.try_into().unwrap(),
-                self.minutes.try_into().unwrap(),
-                self.seconds.try_into().unwrap(),
-            );
-        dt.to_rfc2822()
+    /// Converts this `DateTime` to an RFC 2822 string.
+    ///
+    /// Returns `None` if any field is invalid (e.g., month > 12, day > 31).
+    pub fn to_rfc2822(&self) -> Option<String> {
+        // Convert i32 fields to u32 safely
+        let month = u32::try_from(self.month).ok()?; // 1..=12
+        let day = u32::try_from(self.day).ok()?; // 1..=31
+        let hours = u32::try_from(self.hours).ok()?; // 0..=23
+        let minutes = u32::try_from(self.minutes).ok()?; // 0..=59
+        let seconds = u32::try_from(self.seconds).ok()?; // 0..=60 for leap seconds
+
+        let dt = FixedOffset::east_opt(0) // UTC;
+            .map(|d| {
+                d.ymd(self.year, month, day)
+                    .and_hms(hours, minutes, seconds)
+            })?;
+
+        Some(dt.to_rfc2822())
     }
 }
 
 fn to_datetime(proto_datetime: &Option<DateTime>) -> Option<String> {
-    proto_datetime.as_ref().map(|dt| dt.to_rfc2822())
+    proto_datetime.as_ref().and_then(|dt| dt.to_rfc2822())
 }
 
 /// Converts a `Feed` into an RSS 2.0 XML string.

@@ -24,7 +24,6 @@ include = [
 # Opt-in logging for this library.
 # Downstream can enable with: `features = ["logs"]`
 logs = ["dep:tracing"]
-# rss = ["dep:rss"]
 
 [[example]]
 name = "gen_rss_feed"
@@ -37,8 +36,7 @@ anyhow.workspace = true
 time.workspace = true
 serde.workspace = true
 uuid.workspace = true
-# rss = {version ="2.0.12", optional = true}
-rss = {version ="2.0.12", features=["builders", "serde"]}
+rss = "2.0.12"
 prost-types = {version = "0.14.1", features = ["chrono"]}
 chrono = "0.4.42"
 
