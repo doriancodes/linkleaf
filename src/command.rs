@@ -1,7 +1,10 @@
+use anyhow::Ok;
 use anyhow::{Result, bail};
+use linkleaf_core::fs::read_feed;
 use linkleaf_core::fs::write_feed;
-use linkleaf_core::linkleaf_proto::Feed;
-use linkleaf_core::{add, list};
+use linkleaf_core::linkleaf_proto::{DateTime, Feed, Summary, Via};
+use linkleaf_core::{add, feed_to_rss_xml, list};
+
 use std::path::PathBuf;
 use time::Date;
 use uuid::Uuid;
@@ -34,6 +37,8 @@ pub fn cmd_add(
     via: Option<String>,
     id: Option<Uuid>,
 ) -> Result<()> {
+    let summary = summary.map(|s| Summary::new(&s));
+    let via = via.map(|u| Via::new(&u));
     add(file, title, url, summary, tags, via, id)?;
     Ok(())
 }
@@ -44,7 +49,17 @@ pub fn cmd_list(
     tags: Option<Vec<String>>,
     date: Option<Date>,
 ) -> Result<()> {
-    let feed = list(&file, tags, date)?;
+    // TODO fix this
+    let datetime = date.map(|d| DateTime {
+        year: 0,
+        month: 0,
+        day: 0,
+        hours: 0,
+        minutes: 0,
+        seconds: 0,
+        nanos: 0,
+    });
+    let feed = list(&file, tags, datetime)?;
 
     if long {
         long_print(feed);
@@ -65,7 +80,7 @@ pub fn cmd_list(
             println!(
                 "{:>3}. {}  {}{}\n     {}",
                 idx + 1,
-                l.date,
+                l.datetime.unwrap().to_rfc2822().unwrap(), //TODO change
                 l.title,
                 tags,
                 l.url
@@ -75,18 +90,30 @@ pub fn cmd_list(
     Ok(())
 }
 
+pub fn cmd_gen_rss(feed_file: PathBuf, site_title: &str, site_link: &str) -> Result<()> {
+    let feed = read_feed(&feed_file)?;
+
+    let rss_feed = feed_to_rss_xml(&feed, &site_title, &site_link)?;
+
+    println!("{}", rss_feed);
+
+    Ok(())
+}
+
 fn long_print(feed: Feed) {
     println!("Feed: '{}' (v{})\n", feed.title, feed.version);
     for l in &feed.links {
-        println!("- [{}] {}", l.date, l.title);
+        println!(
+            "- [{}] {}",
+            l.datetime.unwrap().to_rfc2822().unwrap(),
+            l.title
+        );
         println!("  id: {}", l.id);
         println!("  url: {}", l.url);
-        if !l.via.is_empty() {
-            println!("  via: {}", l.via);
-        }
-        if !l.summary.is_empty() {
-            println!("  summary: {}", l.summary);
-        }
+        l.via.as_ref().map(|u| println!("  via: {}", u.url));
+        l.summary
+            .as_ref()
+            .map(|s| println!("  summary: {}", s.content));
         if !l.tags.is_empty() {
             println!("  tags: {}", l.tags.join(", "));
         }
@@ -104,16 +131,27 @@ mod tests {
 
     fn sample_feed_one() -> Feed {
         let mut f = Feed::default();
+        let summary = Some(Summary::new("hello"));
+        let datetime = DateTime {
+            year: 2025,
+            month: 1,
+            day: 1,
+            hours: 0,
+            minutes: 0,
+            seconds: 0,
+            nanos: 0,
+        };
+
         f.title = "Sample".into();
         f.version = 1;
         f.links.push(Link {
             id: "one".into(),
             title: "First".into(),
             url: "https://example.com/1".into(),
-            date: "2025-01-01".into(),
-            summary: "hello".into(),
+            datetime: Some(datetime),
+            summary: summary,
             tags: vec!["x".into(), "y".into()],
-            via: "".into(),
+            via: None,
         });
         f
     }
@@ -166,7 +204,7 @@ mod tests {
         feed = read_feed(&PathBuf::from(&path))?;
         assert_eq!(feed.links.len(), 1, "should update, not duplicate");
         assert_eq!(feed.links[0].title, "The Rust Book");
-        assert_eq!(feed.links[0].summary, "Updated summary");
+        assert_eq!(feed.links[0].summary, Some(Summary::new("Updated summary")));
         Ok(())
     }
 

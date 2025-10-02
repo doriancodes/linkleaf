@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use time::Date;
 use uuid::Uuid;
 
+use crate::command::cmd_gen_rss;
+
 #[derive(Parser)]
 #[command(name = "linkleaf", about = "protobuf-only feed manager (linkleaf.v1)")]
 pub struct Cli {
@@ -25,6 +27,24 @@ enum Commands {
 
     /// List links (compact by default; use -l/--long for details)
     List(ListArgs),
+
+    /// Generate RSS
+    GenRss(GenRssArgs),
+}
+
+#[derive(Args)]
+struct GenRssArgs {
+    /// Path to the feed .pb file
+    #[arg(value_name = "FILE", default_value = "feed/mylinks.pb")]
+    file: PathBuf,
+
+    /// Site Title
+    #[arg(short = 't', long = "title", default_value = "My Links")]
+    site_title: String,
+
+    /// Site Link
+    #[arg(short = 'l', long = "link", default_value = "https://www.example.com")]
+    site_link: String,
 }
 
 #[derive(Args)]
@@ -68,7 +88,7 @@ struct AddArgs {
     file: PathBuf,
 
     /// Link title
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "My Links")]
     title: String,
 
     /// Link URL
@@ -114,5 +134,6 @@ fn main() -> Result<()> {
             args.id,
         ),
         Commands::List(args) => cmd_list(args.file, args.long, args.tags, args.date),
+        Commands::GenRss(args) => cmd_gen_rss(args.file, &args.site_title, &args.site_link),
     }
 }
