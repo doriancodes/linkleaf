@@ -1,7 +1,10 @@
+use anyhow::Ok;
 use anyhow::{Result, bail};
+use linkleaf_core::fs::read_feed;
 use linkleaf_core::fs::write_feed;
 use linkleaf_core::linkleaf_proto::{DateTime, Feed, Summary, Via};
-use linkleaf_core::{add, list};
+use linkleaf_core::{add, feed_to_rss_xml, list};
+
 use std::path::PathBuf;
 use time::Date;
 use uuid::Uuid;
@@ -46,6 +49,7 @@ pub fn cmd_list(
     tags: Option<Vec<String>>,
     date: Option<Date>,
 ) -> Result<()> {
+    // TODO fix this
     let datetime = date.map(|d| DateTime {
         year: 0,
         month: 0,
@@ -83,6 +87,16 @@ pub fn cmd_list(
             );
         }
     }
+    Ok(())
+}
+
+pub fn cmd_gen_rss(feed_file: PathBuf, site_title: &str, site_link: &str) -> Result<()> {
+    let feed = read_feed(&feed_file)?;
+
+    let rss_feed = feed_to_rss_xml(&feed, &site_title, &site_link)?;
+
+    println!("{}", rss_feed);
+
     Ok(())
 }
 

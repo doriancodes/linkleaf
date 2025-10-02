@@ -120,10 +120,10 @@ Example output:
 ```bash
 Feed: 'My Links' (v1) — 2 links
 
-  1. 2025-08-23  Tokio - Asynchronous Rust
+  1. Thu, 2 Oct 2025 02:49:07 +0000  Serde
+     https://serde.rs/
+  2. Thu, 2 Oct 2025 02:49:02 +0000  Tokio — Async Rust [rust,async,tokio]
      https://tokio.rs/
-  2. 2025-08-23  The Rust Book [rust,learning,book]
-     https://doc.rust-lang.org/book/
 ```
 Detailed (multi-line) view:
 
@@ -135,15 +135,16 @@ Example output:
 ```bash
 Feed: 'My Links' (v1)
 
-- [2025-08-23] Tokio - Asynchronous Rust
-  id: f47ac10b-58cc-4372-a567-0e02b2c3d479
-  url: https://tokio.rs/
+- [Thu, 2 Oct 2025 02:49:07 +0000] Serde
+id: aa4f1396-7a78-410d-83cd-acaf0b0fbe4e
+url: https://serde.rs/
 
-- [2025-08-23] The Rust Book
-  id: 3f2504e0-4f89-41d3-9a0c-0305e82c3301
-  url: https://doc.rust-lang.org/book/
-  via: https://rust-lang.org
-  tags: rust, learning, book
+- [Thu, 2 Oct 2025 02:49:02 +0000] Tokio — Async Rust
+id: b3a20989-0ba1-4c4e-80d4-bd2cfa33e9a9
+url: https://tokio.rs/
+via: https://github.com/tokio-rs
+summary: The async runtime for Rust
+tags: rust,async,tokio
 ```
 Filter by tags or by date (day-precision):
 ```bash
@@ -152,6 +153,18 @@ linkleaf list --tags rust,book
 
 # Only links from that calendar day (local time)
 linkleaf list --date 2025-08-23
+```
+
+### Generate RSS feed
+```bash
+# Generates the rss from feed/mylinks.pb with the site title "My Links" and site link "https://www.example.com"
+linkleaf gen-rss
+
+# Generates the rss from feed/mylinks.pb with the site title "Awesome Links" and site link "https://www.example.com"
+linkleaf gen-rss -t "Awesome Links"
+
+# Generates the rss from feed/mylinks.pb with the site title "My Links" and site link "https://www.yourwebsite.com"
+linkleaf gen-rss -l "https://www.yourwebsite.com"
 ```
 
 ## Feed Schema
@@ -182,3 +195,6 @@ To recompile after changing the .proto schema:
 cargo clean
 cargo build
 ```
+
+# Fixes
+- Add link gives a default name if none is given when the feed is created
